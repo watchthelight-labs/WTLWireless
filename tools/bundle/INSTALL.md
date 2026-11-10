@@ -25,7 +25,7 @@ https://github.com/watchthelight-labs/WTLMtkWireless
 3. Add `mtkfe=native mtknativeif=1` to `boot-args` (`NVRAM > Add > 7C436110-AB2A-4BBB-A880-FE41995C9F82`).
 4. Reboot. The Wi-Fi icon appears in the menu bar; join your network from it and macOS remembers it.
 
-On macOS Sequoia (15.x) the native menu kext does not load (it is built for Tahoe 26.7.1 build 25G241 and 26.7.2 build 25G332 only); the driver
+On macOS Sequoia (15.x) the native menu kext does not load (it is built for Tahoe 26.7.1 build 25G241, 26.7.2 build 25G332, 26.7.3 build 25G342 and the 26.7.3 developer beta 25G416 only); the driver
 then shows an Ethernet port `en1` and you join with the `mtkwifi` tool from the repo. On any build where the native menu
 does not come up, the driver falls back to that Ethernet port by itself, so you never lose network to a wrong kext.
 

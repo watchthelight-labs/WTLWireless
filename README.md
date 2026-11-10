@@ -20,7 +20,7 @@ There are three kexts for the one card: install the first two together for Wi-Fi
 | Repo | What it does | Needs |
 |---|---|---|
 | [WTLMtkWireless](https://github.com/watchthelight-labs/WTLMtkWireless) (this one) | the driver: firmware, DMA, scan, join, WPA2, data path; on its own macOS sees an Ethernet port | nothing (no Lilu) |
-| [WTLWifiMenu](https://github.com/watchthelight-labs/WTLWifiMenu) | the native front end: macOS's own Wi-Fi menu, settings pane, saved networks, auto-join | this driver, macOS 26.7.1 (25G241) or 26.7.2 (25G332) |
+| [WTLWifiMenu](https://github.com/watchthelight-labs/WTLWifiMenu) | the native front end: macOS's own Wi-Fi menu, settings pane, saved networks, auto-join | this driver, macOS 26.7.1 (25G241), 26.7.2 (25G332), 26.7.3 (25G342) or the 26.7.3 developer beta 25G416 |
 | [WTLMtkBluetooth](https://github.com/watchthelight-labs/WTLMtkBluetooth) | loads the Bluetooth firmware of the same card (USB `0489:E111` and the other MT7925 ids) | BlueToolFixup; on Tahoe also [WTLLegionBtFix](https://github.com/watchthelight-labs/WTLLegionBtFix) |
 
 The quickest install is the bundle on the [releases page](../../releases): both Wi-Fi kexts, the licences and an
@@ -45,7 +45,7 @@ Both projects are good work and they cover cards this one does not. The table is
 |---|---|---|---|
 | Cards | MT7925, RZ717 | MT7921, MT7921K/RZ608, MT7922, RZ616 | MT7922/RZ616 (pengubow), MT7921/RZ608 (mnnobre), MT7921, RZ608 and MT7922/RZ616 ([Arxusion](https://github.com/Arxusion/AirportMtkWlan)) |
 | How you join a network | macOS's own Wi-Fi menu and System Settings; networks saved by macOS, auto-join at boot, private address per network | the card is an Ethernet port; `mtkwifi join` on the command line, HeliPort "not tested yet", or the SimpleMTK menu-bar client some forks ship | macOS's own Wi-Fi menu (experimental) |
-| macOS | Sequoia 15 and Tahoe 26 for the driver; the native menu on Tahoe 26.7.1 (25G241) and 26.7.2 (25G332) | "tested in the macOS 15 installer" | macOS 15.2 to 15.x; the Arxusion line (v1.5.1) says Tahoe 26 |
+| macOS | Sequoia 15 and Tahoe 26 for the driver; the native menu on Tahoe 26.7.1 (25G241), 26.7.2 (25G332), 26.7.3 (25G342) and the 26.7.3 developer beta 25G416 | "tested in the macOS 15 installer" | macOS 15.2 to 15.x; the Arxusion line (v1.5.1) says Tahoe 26 |
 | Measured | 190.8 / 174.8 Mb/s, 16 ms idle ping (0.9.0, Ethernet front end); native front end holds the link, auto-joins at boot | not stated on the page | 83 / 44 Mb/s on a G713PV |
 | 802.11 | HT/VHT at 80 MHz; no ax yet | n/ac/ax, 40/80 MHz | as SimpleMtkWlan |
 | WPA2-PSK | code passes the host tests; joined on air by a tester on an RZ717 board (not by me, only an open network here) | yes | yes |
@@ -60,7 +60,7 @@ Everything below was measured on one laptop (Legion 5 15IAX10, OpenCore 1.0.8) o
 
 | Version | What it adds | Tested on | Result |
 |---|---|---|---|
-| 0.12.1 | core ops v5 for the native front end: real rate, MCS, streams, width and guard interval; `set_country`; plus everything in 0.12.0 (restart and power-off quiesce, attach recovery, link supervisor, 128-network scan cache, join ROC held through WPA2) | macOS 26.7.1 (25G241), 26.7.2 (25G332) | joins at boot with MtkWlanNative 0.4.13 (0.4.14 and 0.4.15 on 25G332); macOS shows 11ac, 80 MHz, MCS 9, 2 streams, 866 Mbit/s (the negotiated maximum, no TX status records on this link) |
+| 0.12.1 | core ops v5 for the native front end: real rate, MCS, streams, width and guard interval; `set_country`; plus everything in 0.12.0 (restart and power-off quiesce, attach recovery, link supervisor, 128-network scan cache, join ROC held through WPA2) | macOS 26.7.1 (25G241), 26.7.2 (25G332) | joins at boot with MtkWlanNative 0.4.13 (0.4.14 and 0.4.15 on 25G332, 0.4.16 on the beta 25G416); macOS shows 11ac, 80 MHz, MCS 9, 2 streams, 866 Mbit/s (the negotiated maximum, no TX status records on this link) |
 | 0.11.0 | core ops v4: `set_mac` changes the station address after bring-up (the firmware station interface is re-added with it), so a native front end can apply the per-network private address macOS picks; `MtkMacAddr`, `MtkMacChanges` properties | macOS 26.7.1 (25G241) | with the native front end MtkWlanNative 0.4.9: Wi-Fi menu, macOS-driven joins with a private address, auto-join at boot, link held for ten quiet minutes; Ethernet front end unchanged |
 | 0.10.0 | core ops v3 (`set_mode`, `get_bss`, `get_channels`, `tx_bytes`), front-end selection (`MtkFrontEnd`: Ethernet, native front end optional) with Ethernet fallback, `mtkwifi` shows the front end | macOS 26.7.1 (25G241) | 192.7 Mb/s down, 134.6 Mb/s up, 16 ms idle ping, 0 % loss; same auto join at boot |
 | 0.9.0 | scan and join machines, `mtkwifi` tool, saved networks, auto join at boot, WPA2-PSK code | macOS 26.7.1 (25G241) | 190.8 Mb/s down, 174.8 Mb/s up, 16 ms idle ping, 0 % loss; joins the network by itself at boot |
@@ -73,7 +73,7 @@ Everything below was measured on one laptop (Legion 5 15IAX10, OpenCore 1.0.8) o
 
 ## What it can't do
 
-- With this kext alone there is no Wi-Fi menu: macOS sees an Ethernet card and you pick networks with the `mtkwifi` command line tool. There is no Wi-Fi icon, no Wi-Fi pane in System Settings, no AirDrop, no Continuity. The native front end is a second kext, [MtkWlanNative](https://github.com/watchthelight-labs/WTLWifiMenu) (0.4.15, macOS Tahoe 26.7.1 and 26.7.2), built against the same core ops table: with it the Wi-Fi menu works, macOS runs the scans and joins, saves networks and auto-joins at boot.
+- With this kext alone there is no Wi-Fi menu: macOS sees an Ethernet card and you pick networks with the `mtkwifi` command line tool. There is no Wi-Fi icon, no Wi-Fi pane in System Settings, no AirDrop, no Continuity. The native front end is a second kext, [MtkWlanNative](https://github.com/watchthelight-labs/WTLWifiMenu) (0.4.16, macOS Tahoe 26.7.1 to 26.7.3 and the 26.7.3 developer beta 25G416), built against the same core ops table: with it the Wi-Fi menu works, macOS runs the scans and joins, saves networks and auto-joins at boot.
 - It can't join WPA3-SAE only, WPA2 with PSK-SHA256 only, networks that require management frame protection, WPA (TKIP pairwise) or enterprise (802.1X) networks. `mtkwifi list` marks these.
 - No roaming between access points of one network. No HE (802.11ax) or EHT; the association is VHT at 80 MHz.
 - No sleep and wake handling. The laptop this runs on has sleep disabled.
@@ -90,7 +90,7 @@ The bundle zip from the [releases](../../releases) holds `MtkWlan.kext`, `MtkWla
 1. Get `MtkWlan.kext` from the [releases](../../releases) (the release zip carries `LICENSE`, `NOTICE.md` and
    `LICENSES/` because the licences require them next to the binary), or build it (below). For the Wi-Fi menu also get
    `MtkWlanNative.kext` from [its releases](https://github.com/watchthelight-labs/WTLWifiMenu/releases)
-   (macOS 26.7.1 build 25G241 and 26.7.2 build 25G332 only; on Sequoia use the driver alone with the `mtkwifi` tool).
+   (macOS 26.7.1 build 25G241, 26.7.2 build 25G332, 26.7.3 build 25G342 and the 26.7.3 developer beta 25G416 only; on Sequoia use the driver alone with the `mtkwifi` tool).
 2. Copy the kext(s) to `EFI/OC/Kexts/` and add them to `config.plist`, `Kernel > Add`, in this order:
 
    ```

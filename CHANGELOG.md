@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- `mtkwifi add` no longer fails with `mkdir ... No such file or directory` on a machine that has no `/Library/Application Support/legion` folder yet. The tool now creates that folder before its own ([#6](https://github.com/watchthelight-labs/WTLMtkWireless/issues/6)). Until the next bundle, build the tool with `tools/mtkwifi/build.sh`, or run `sudo mkdir -p "/Library/Application Support/legion"` once.
+- Bundle `mt7925-wifi-bundle-0.12.1+0.4.16.zip` (2026-11-10): MtkWlanNative 0.4.16, which loads on the macOS 26.7.3 developer beta (25G416). The driver kext is unchanged.
+- `tools/bundle/make-bundle.sh` downloads from the renamed repos.
+- `mtkwifi add` no longer fails with `mkdir ... No such file or directory` on a machine that has no `/Library/Application Support/legion` folder yet. The tool now creates that folder before its own ([#6](https://github.com/watchthelight-labs/WTLMtkWireless/issues/6)). The bundle `mt7925-wifi-bundle-0.12.1+0.4.16.zip` has the fixed tool in its Recovery folder; with an older one, run `sudo mkdir -p "/Library/Application Support/legion"` once.
 
 ## 0.12.1 (2026-10-23)
 
