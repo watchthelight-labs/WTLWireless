@@ -74,6 +74,7 @@ Everything below was measured on one laptop (Legion 5 15IAX10, OpenCore 1.0.8) o
 ## What it can't do
 
 - With this kext alone there is no Wi-Fi menu: macOS sees an Ethernet card and you pick networks with the `mtkwifi` command line tool. There is no Wi-Fi icon, no Wi-Fi pane in System Settings, no AirDrop, no Continuity. The native front end is a second kext, [MtkWlanNative](https://github.com/watchthelight-labs/WTLWifiMenu) (0.4.16, macOS Tahoe 26.7.1 to 26.7.3 and the 26.7.3 developer beta 25G416), built against the same core ops table: with it the Wi-Fi menu works, macOS runs the scans and joins, saves networks and auto-joins at boot.
+- On a macOS build the native front end does not cover (26.0 to 26.6, Sequoia), xiaoyizpast's [WiFi Menu](https://github.com/xiaoyizpast/Hackintosh-OMEN-8f06/tree/main/wifi-menu) puts `mtkwifi` behind a menu bar icon: scan, join, disconnect ([#7](https://github.com/watchthelight-labs/WTLMtkWireless/issues/7)). It is a third-party app (MIT), tested by its author on macOS 26.0; I have not reviewed it.
 - It can't join WPA3-SAE only, WPA2 with PSK-SHA256 only, networks that require management frame protection, WPA (TKIP pairwise) or enterprise (802.1X) networks. `mtkwifi list` marks these.
 - No roaming between access points of one network. No HE (802.11ax) or EHT; the association is VHT at 80 MHz.
 - No sleep and wake handling. The laptop this runs on has sleep disabled.
