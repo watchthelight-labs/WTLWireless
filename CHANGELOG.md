@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `mtkwifi add` no longer fails with `mkdir ... No such file or directory` on a machine that has no `/Library/Application Support/legion` folder yet. The tool now creates that folder before its own ([#6](https://github.com/watchthelight-labs/WTLMtkWireless/issues/6)). Until the next bundle, build the tool with `tools/mtkwifi/build.sh`, or run `sudo mkdir -p "/Library/Application Support/legion"` once.
+
 ## 0.12.1 (2026-10-23)
 
 - Core API version 5 for the native front end ([WTLWifiMenu](https://github.com/watchthelight-labs/WTLWifiMenu) 0.4.13):

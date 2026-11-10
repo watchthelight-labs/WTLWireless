@@ -29,6 +29,7 @@
 #include "MtkUserApi.h"
 #include "MtkCrypto.h"
 
+static const char *kNetParent = "/Library/Application Support/legion";
 static const char *kNetDir = "/Library/Application Support/legion/mtkwifi";
 static const char *kNetFile = "/Library/Application Support/legion/mtkwifi/networks.plist";
 
@@ -300,6 +301,8 @@ static int save_nets(void) {
     CFDataRef data = CFPropertyListCreateData(NULL, arr, kCFPropertyListXMLFormat_v1_0, 0, NULL);
     CFRelease(arr);
     if (!data) die("could not encode the networks list");
+    // a fresh install has no legion folder yet (labs issue #6)
+    if (mkdir(kNetParent, 0755) && errno != EEXIST) die("mkdir %s: %s", kNetParent, strerror(errno));
     if (mkdir(kNetDir, 0700) && errno != EEXIST) die("mkdir %s: %s", kNetDir, strerror(errno));
     (void)chmod(kNetDir, 0700);
     (void)chown(kNetDir, 0, 0);
