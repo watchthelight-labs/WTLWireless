@@ -33,7 +33,7 @@ The quickest install is the bundle on the [releases page](../../releases): both 
 |---|---|---|
 | MediaTek MT7925 (Filogic 360), Lenovo Legion 5 15IAX10 and other 2025 laptops | `14C3:7925`, subsystem `17AA:E0FF` | tested daily, every number in this README comes from it |
 | AMD RZ717 (MT7925 on AM5 desktop boards: ASRock X870 Steel Legend WiFi and others) | `14C3:0717` | matched since 0.11.1; Bluetooth confirmed on an X870, Wi-Fi with the native front end on another AM5 board ([native #3](https://github.com/watchthelight-labs/WTLWifiMenu/issues/3)) |
-| Other MT7925 boards (different subsystem ids) | `14C3:7925` | should work; an ASUS ROG Strix B860-G desktop reports Wi-Fi and Bluetooth working on 26.7.2 ([#4](https://github.com/watchthelight-labs/WTLMtkWireless/issues/4)); report either way |
+| Other MT7925 boards (different subsystem ids) | `14C3:7925` | should work; an ASUS ROG Strix B860-G desktop reports Wi-Fi and Bluetooth working on 26.7.2 ([#4](https://github.com/watchthelight-labs/WTLMtkWireless/issues/4)), and an HP HyperX OMEN PRO 16 laptop (subsystem `103C:8C38`, Ryzen 9 9955HX) reports the native menu joining at boot on 26.7.2 ([#6](https://github.com/watchthelight-labs/WTLMtkWireless/issues/6)); report either way |
 | MT7921, MT7921K (RZ608), MT7922 (RZ616), MT7920, MT7902 | `14C3:7961`, `0608`, `7922`, `0616`, ... | **not supported**: different firmware and a different init path. See "Other MediaTek cards" below for what it would take and how to help; until then SimpleMtkWlan and its forks cover those cards |
 
 ## Compared with SimpleMtkWlan and AirportMtkWlan
