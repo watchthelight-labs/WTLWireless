@@ -14,10 +14,6 @@
 
 #include "MtkWlan.hpp"
 
-extern "C" {
-extern const unsigned char mtk_fw_ram[];
-extern const unsigned int mtk_fw_ram_len;
-}
 
 namespace {
 constexpr uint8_t UNI_EFUSE_CTRL = 0x2d, UNI_SET_POWER_LIMIT = 0x2c;
@@ -56,13 +52,14 @@ int MtkWlan::clcStage() {
     if (rc) return -1;
     uint8_t encap = hw & 3;
 
-    const uint8_t *fw = mtk_fw_ram, *trailer = fw + mtk_fw_ram_len - 36;
+    const uint32_t fwLen = *chip->ram.len;
+    const uint8_t *fw = chip->ram.data, *trailer = fw + fwLen - 36;
     uint32_t nRegion = trailer[2], offset = 0, clcLen = 0;
     const uint8_t *clcBase = nullptr;
     for (uint32_t i = 0; i < nRegion; i++) {
         const uint8_t *reg = trailer - (nRegion - i) * 40;
         uint32_t len = le32(reg + 20);
-        if (offset + len > mtk_fw_ram_len) return -2;
+        if (offset + len > fwLen) return -2;
         if ((reg[24] & FW_FEATURE_NON_DL) && reg[25] == FW_TYPE_CLC) { clcBase = fw + offset; clcLen = len; break; }
         offset += len;
     }

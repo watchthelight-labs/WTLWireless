@@ -26,7 +26,6 @@ constexpr uint32_t PCIE_LPCR_HOST_OWN_SYNC  = 1u << 2;
 constexpr uint32_t MT_CONN_ON_MISC          = 0x7c0600f0;
 constexpr uint32_t MT_HW_CHIPID             = 0x70010200;
 constexpr uint32_t MT_HW_REV                = 0x70010204;
-constexpr uint32_t MT_WFSYS_SW_RST_B        = 0x7c000140;
 constexpr int      MT792x_DRV_OWN_RETRY_COUNT = 10;
 } // namespace
 
@@ -134,6 +133,7 @@ bool MtkWlan::start(IOService *provider) {
     if (OSString *feStr = OSDynamicCast(OSString, getProperty("MtkFrontEnd"))) feNativeWanted = feStr->isEqualTo("native");
     char feArg[16] = {};
     if (PE_parse_boot_arg_str("mtkfe", feArg, sizeof(feArg))) feNativeWanted = !strcmp(feArg, "native");
+    setProperty("MtkFrontEnd", feNativeWanted ? "native" : "ethernet");   // the request after the boot-arg (I-133)
     OSNumber *rate = OSDynamicCast(OSNumber, getProperty("MtkDataRate"));
     if (rate && rate->unsigned32BitValue() >= 18 && rate->unsigned32BitValue() <= 25) dataRate = (uint8_t)rate->unsigned8BitValue();
     OSBoolean *pwr = OSDynamicCast(OSBoolean, getProperty("MtkPower"));
@@ -147,6 +147,16 @@ bool MtkWlan::start(IOService *provider) {
     OSNumber *mbw = OSDynamicCast(OSNumber, getProperty("MtkMaxBw"));
     if (mbw && mbw->unsigned32BitValue() <= 2) maxBw = (uint8_t)mbw->unsigned32BitValue();
     setProperty("MtkMilestone", "W1");
+
+    uint16_t pciDev = pci->configRead16(kIOPCIConfigDeviceID);
+    setNum("MtkPciDevice", pciDev, 16);
+    setNum("MtkPciSubsystem", pci->configRead16(kIOPCIConfigSubSystemID), 16);
+    chip = mtkChipForPci(pciDev);
+    if (!chip) {                                // matched by a personality we have no row for: touch nothing
+        setProperty("MtkChipUnsupported", "no chip table row for this PCI device");
+        step("W1 stop: unsupported card, report only");
+        return true;
+    }
 
     setNum("MtkPciCommandBefore", pci->configRead16(kIOPCIConfigCommand), 16);
     pci->setMemoryEnable(true);
@@ -189,13 +199,19 @@ bool MtkWlan::start(IOService *provider) {
     setNum("MtkHwRev", hwRev);
     setNum("MtkAsicRevision", (chipId << 16) | (hwRev & 0xff)); // mdev->rev in mt7925_pci_probe
     setNum("MtkConnOnMisc", rr(MT_CONN_ON_MISC));
-    setNum("MtkWfsysSwRst", rr(MT_WFSYS_SW_RST_B));
+    setNum("MtkWfsysSwRst", rr(chip->wfsysRst));
     setNum("MtkBadAccess", badAccess);
 
-    if ((chipId & 0xffff) != 0x7925) {
+    if ((chipId & 0xffff) != chip->id) {
+        setProperty("MtkChipUnsupported", "chip id does not match the PCI device");
+        fwOwn();                                // leave it as found, report only
         step("W1 partial: drv_own ok, unexpected chip id");
         return true;
     }
+    setProperty("MtkChipName", chip->name);
+    setNum("MtkChipBands", chip->bands, 8);     // bit 0 2.4 GHz, bit 1 5 GHz, bit 2 6 GHz
+    setNum("MtkChipNss", chip->nss, 8);
+    setNum("MtkChipMaxBw", chip->maxBw, 8);
     step("W1 pass: drv_own ok, chip 7925");
 
     mapper = IOMapper::copyMapperForDevice(pci);

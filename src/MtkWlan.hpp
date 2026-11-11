@@ -27,6 +27,7 @@
 #include <IOKit/pci/IOPCIDevice.h>
 #include <libkern/OSByteOrder.h>
 #include "MtkDma.hpp"
+#include "MtkChip.h"
 #include "MtkCoreApi.h"
 #include "MtkSupp.h"
 #include "MtkSuper.h"
@@ -290,6 +291,7 @@ private:
     IOMemoryMap *map = nullptr;
     volatile uint8_t *mmio = nullptr;
     uint32_t mmioLen = 0;
+    const MtkChip *chip = nullptr;      // set from the PCI device ID before the first register access
     uint32_t backupL1 = 0, backupL2 = 0;
     uint32_t badAccess = 0;
 

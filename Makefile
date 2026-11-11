@@ -5,7 +5,7 @@
 #   make SDK=/path/to/MacKernelSDK
 NAME         := MtkWlan
 KEXT_ID      := org.watchthelight.MtkWlan
-KEXT_VERSION := 0.12.1
+KEXT_VERSION := 0.12.2
 
 SDK    ?= $(CURDIR)/MacKernelSDK
 LD     := LD_LIBRARY_PATH=/opt/dispatch/lib /opt/cctools/bin/x86_64-apple-darwin-ld
@@ -14,7 +14,7 @@ CXX    := clang++
 TARGET := -target x86_64-apple-macos10.15
 RES    := $(shell clang -print-resource-dir)/include
 
-SRCS := src/MtkWlan.cpp src/MtkRegs.cpp src/MtkDma.cpp src/MtkFw.cpp src/MtkScan.cpp src/MtkJoin.cpp src/MtkSec.cpp \
+SRCS := src/MtkWlan.cpp src/MtkChip.cpp src/MtkRegs.cpp src/MtkDma.cpp src/MtkFw.cpp src/MtkScan.cpp src/MtkJoin.cpp src/MtkSec.cpp \
         src/MtkNet.cpp src/MtkBa.cpp src/MtkPower.cpp src/MtkWlanEth.cpp src/MtkUserClient.cpp \
         src/MtkCrypto.c src/MtkSupp.c src/MtkSuper.c out/gen/MtkFirmware.c
 

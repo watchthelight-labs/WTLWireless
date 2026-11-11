@@ -57,8 +57,11 @@ echo "undefined symbols: $(wc -l < out/undefined.txt | tr -d ' ') (out/undefined
 if grep -E '^_{2,3}(cxa_|Unwind|gxx_)|^__ZTV.*__cxxabiv|^__Znw|^__Zdl' out/undefined.txt; then
   echo "FAIL: C++ runtime symbols the kernel does not export"; exit 1
 fi
-# which OSBundleLibraries the undefined symbols need (kmutil reads the installed kernel collections, changes nothing)
-if kmutil libraries -p out/$NAME.kext --xml > out/libraries.plist 2> out/libraries.err; then
+# which OSBundleLibraries the undefined symbols need (kmutil reads the installed kernel collections, changes nothing);
+# NO_KMUTIL=1 skips that read
+if [ -n "${NO_KMUTIL:-}" ]; then
+  echo "kmutil libraries: skipped (NO_KMUTIL)"
+elif kmutil libraries -p out/$NAME.kext --xml > out/libraries.plist 2> out/libraries.err; then
   plutil -p out/libraries.plist > out/libraries.txt
   echo "kmutil libraries: out/libraries.txt"
 else

@@ -9,15 +9,6 @@
 
 #include "MtkWlan.hpp"
 
-extern "C" {
-extern const unsigned char mtk_fw_patch[];
-extern const unsigned int mtk_fw_patch_len;
-extern const char mtk_fw_patch_sha256[];
-extern const unsigned char mtk_fw_ram[];
-extern const unsigned int mtk_fw_ram_len;
-extern const char mtk_fw_ram_sha256[];
-}
-
 namespace {
 // --- registers (BAR offsets below 0x200000 are used as is, chip addresses go through the remap)
 constexpr uint32_t WFDMA0                  = 0xd4000;
@@ -41,7 +32,6 @@ constexpr uint32_t UWFDMA0_GLO_CFG_EXT1    = 0x7c0242b4;
 constexpr uint32_t DMASHDL_SW_CONTROL      = 0x7c026004;
 constexpr uint32_t WFDMA_DUMMY_CR          = 0x54000120;
 constexpr uint32_t HW_EMI_CTL              = 0x18011100;
-constexpr uint32_t WFSYS_SW_RST_B_REG      = 0x7c000140;
 constexpr uint32_t CONN_ON_MISC            = 0x7c0600f0;
 
 constexpr uint32_t GLO_TX_DMA_EN = 1u << 0, GLO_TX_DMA_BUSY = 1u << 1, GLO_RX_DMA_EN = 1u << 2,
@@ -52,7 +42,7 @@ constexpr uint32_t GLO_TX_DMA_EN = 1u << 0, GLO_TX_DMA_BUSY = 1u << 1, GLO_RX_DM
 constexpr uint32_t GLO_DMA_SIZE_3 = 3u << 4;
 
 // interrupt masks (mt7925/regs.h, mt792x_regs.h)
-constexpr uint32_t INT_RX_DONE_WM = 1u << 0, INT_RX_DONE_DATA = 1u << 2, INT_TX_DONE_BAND0 = 1u << 4,
+constexpr uint32_t INT_TX_DONE_BAND0 = 1u << 4,
                    INT_TX_DONE_MCU = (1u << 25) | (1u << 27) | (1u << 26), INT_MCU_CMD = 1u << 29;
 constexpr uint32_t INT_TX_DONE_ALL = INT_TX_DONE_MCU | INT_TX_DONE_BAND0 | 0x7fff0; // GENMASK(18, 4)
 
@@ -60,7 +50,7 @@ constexpr uint32_t INT_TX_DONE_ALL = INT_TX_DONE_MCU | INT_TX_DONE_BAND0 | 0x7ff
 constexpr uint32_t DMA_CTL_SD_LEN0_SHIFT = 16, DMA_CTL_LAST_SEC0 = 1u << 30, DMA_CTL_DMA_DONE = 1u << 31;
 
 // rings: Linux sizes are 2048/256/128/1536/512; smaller rings are enough for bring-up
-constexpr uint16_t TXQ_BAND0 = 0, TXQ_MCU_WM = 15, TXQ_FWDL = 16, RXQ_MCU_WM = 0, RXQ_BAND0 = 2;
+constexpr uint16_t TXQ_BAND0 = 0, TXQ_MCU_WM = 15, TXQ_FWDL = 16;   // RX ring numbers are per chip
 
 // MCU commands (mt76_connac_mcu.h)
 constexpr uint8_t CMD_TARGET_ADDRESS_LEN_REQ = 0x01, CMD_FW_START_REQ = 0x02, CMD_PATCH_START_REQ = 0x05,
@@ -274,7 +264,7 @@ int MtkWlan::patchSem(bool get) {
 
 // mt76_connac2_load_patch
 int MtkWlan::loadPatch() {
-    const uint8_t *fw = mtk_fw_patch;
+    const uint8_t *fw = chip->patch.data;
     int sem = patchSem(true);
     setNum("MtkW3PatchSemGet", (uint32_t)sem);
     if (sem == PATCH_IS_DL) return 0;
@@ -293,7 +283,7 @@ int MtkWlan::loadPatch() {
             if (enc == 1) mode |= DL_MODE_ENCRYPT | (((info & 0xff) << 1) & 0x6) | DL_MODE_RESET_SEC_IV;
             else if (enc == 2) mode |= DL_MODE_ENCRYPT | DL_CONFIG_ENCRY_MODE_SEL | DL_MODE_RESET_SEC_IV;
         }
-        if (offs + len > mtk_fw_patch_len) { ret = -3; break; }
+        if (offs + len > *chip->patch.len) { ret = -3; break; }
         int r = initDownload(addr, len, mode);
         setNum(i ? "MtkW3PatchInit1" : "MtkW3PatchInit0", (uint32_t)r);
         if (r) { ret = -4; break; }
@@ -313,9 +303,10 @@ int MtkWlan::loadPatch() {
 
 // mt76_connac2_load_ram + mt76_connac_mcu_send_ram_firmware (WM only, no WA on mt7925)
 int MtkWlan::loadRam() {
-    const uint8_t *fw = mtk_fw_ram;
+    const uint8_t *fw = chip->ram.data;
+    const uint32_t fwLen = *chip->ram.len;
     const uint32_t trailerLen = 36, regionLen = 40;   // sizeof fw_trailer / fw_region (checked against the blob)
-    const uint8_t *hdr = fw + mtk_fw_ram_len - trailerLen;
+    const uint8_t *hdr = fw + fwLen - trailerLen;
     uint32_t nRegion = hdr[2];
     setNum("MtkW3RamRegions", nRegion);
     char ver[32] = {};
@@ -334,7 +325,7 @@ int MtkWlan::loadRam() {
             uint32_t mode = DL_MODE_NEED_RSP | (((feature >> 1) & 3) << 1);   // mt76_connac_mcu_gen_dl_mode
             if (feature & FW_FEATURE_SET_ENCRYPT) mode |= DL_MODE_ENCRYPT | DL_MODE_RESET_SEC_IV;
             if (feature & FW_FEATURE_ENCRY_MODE) mode |= DL_CONFIG_ENCRY_MODE_SEL;
-            if (offset + len > mtk_fw_ram_len) return -1;
+            if (offset + len > fwLen) return -1;
             if (initDownload(addr, len, mode)) return -2;
             if (sendScatter(fw + offset, len)) return -3;
         }
@@ -357,10 +348,10 @@ int MtkWlan::hwStart() {
     rmw(HW_EMI_CTL, 1u << 1, 1u << 1);                         // SLPPROT_EN
 
     // mt792x_wfsys_reset: drop the firmware Windows left running
-    rmw(WFSYS_SW_RST_B_REG, 1u << 0, 0);
+    rmw(chip->wfsysRst, 1u << 0, 0);
     IOSleep(50);
-    rmw(WFSYS_SW_RST_B_REG, 1u << 0, 1u << 0);
-    bool rstDone = pollMsec(WFSYS_SW_RST_B_REG, 1u << 4, 1u << 4, 500, 10);
+    rmw(chip->wfsysRst, 1u << 0, 1u << 0);
+    bool rstDone = pollMsec(chip->wfsysRst, 1u << 4, 1u << 4, 500, 10);
     setNum("MtkW2ConnOnMiscAfterReset", rr(CONN_ON_MISC));
     if (!rstDone) { step("W2 fail: wfsys reset"); return -1; }
 
@@ -390,23 +381,14 @@ int MtkWlan::hwStart() {
     rawWrite(TX_RING0_EXT_CTRL, 0x4);
     if ((e = ring(txMcu, false, TXQ_MCU_WM, 32, 2048)))  { setNum("MtkW2RingFail", 200 + e); step("W2 fail: ring alloc"); return -3; }
     if ((e = ring(txFwdl, false, TXQ_FWDL, 32, 4096)))   { setNum("MtkW2RingFail", 300 + e); step("W2 fail: ring alloc"); return -3; }
-    if ((e = ring(rxMcu, true, RXQ_MCU_WM, 128, 2048)))   { setNum("MtkW2RingFail", 400 + e); step("W2 fail: ring alloc"); return -3; }
-    if ((e = ring(rxData, true, RXQ_BAND0, 512, 2048)))   { setNum("MtkW2RingFail", 500 + e); step("W2 fail: ring alloc"); return -3; }
+    if ((e = ring(rxMcu, true, chip->rxqMcu, 128, 2048)))   { setNum("MtkW2RingFail", 400 + e); step("W2 fail: ring alloc"); return -3; }
+    if ((e = ring(rxData, true, chip->rxqData, 512, 2048)))   { setNum("MtkW2RingFail", 500 + e); step("W2 fail: ring alloc"); return -3; }
     setNum("MtkW2RxMcuIova", rxMcu.desc.iova);
     setNum("MtkW2RxMcuPhys", rxMcu.desc.phys, 64);   // equal to the iova: no VT-d translation
 
-    // mt792x_dma_enable (mt7925 branch of mt792x_dma_prefetch)
-    auto pf = [](uint32_t base, uint32_t depth) { return (base << 16) | depth; };
-    rawWrite(WFDMA0 + 0x680, pf(0x0000, 0x4));
-    rawWrite(WFDMA0 + 0x684, pf(0x0040, 0x4));
-    rawWrite(WFDMA0 + 0x688, pf(0x0080, 0x4));
-    rawWrite(WFDMA0 + 0x68c, pf(0x00c0, 0x4));
-    rawWrite(WFDMA0 + 0x600, pf(0x0100, 0x10));
-    rawWrite(WFDMA0 + 0x604, pf(0x0200, 0x10));
-    rawWrite(WFDMA0 + 0x608, pf(0x0300, 0x10));
-    rawWrite(WFDMA0 + 0x60c, pf(0x0400, 0x10));
-    rawWrite(WFDMA0 + 0x63c, pf(0x0500, 0x4));
-    rawWrite(WFDMA0 + 0x640, pf(0x0540, 0x4));
+    // mt792x_dma_enable (mt792x_dma_prefetch)
+    for (uint8_t i = 0; i < chip->nPrefetch; i++)
+        rawWrite(WFDMA0 + chip->prefetch[i].ofs, chip->prefetch[i].val);
     rawWrite(WFDMA0_RST_DTX_PTR, ~0u);
     rawWrite(WFDMA0_RST_DRX_PTR, ~0u);
     rawWrite(WFDMA0_PRI_DLY_INT_CFG0, 0);
@@ -418,7 +400,7 @@ int MtkWlan::hwStart() {
     rawWrite(WFDMA0_INT_RX_PRI, rawRead(WFDMA0_INT_RX_PRI) | 0x0f00);
     rawWrite(WFDMA0_INT_TX_PRI, rawRead(WFDMA0_INT_TX_PRI) | 0x7f00);
     rmw(WFDMA_DUMMY_CR, 1u << 1, 1u << 1);                                       // NEED_REINIT
-    rawWrite(WFDMA0_HOST_INT_ENA, INT_TX_DONE_ALL | INT_RX_DONE_DATA | INT_RX_DONE_WM | INT_MCU_CMD);
+    rawWrite(WFDMA0_HOST_INT_ENA, INT_TX_DONE_ALL | chip->irqRxData | chip->irqRxMcu | INT_MCU_CMD);
     rawWrite(WFDMA0_MCU2HOST_SW_INT_ENA, rawRead(WFDMA0_MCU2HOST_SW_INT_ENA) | 1u << 0);
     setNum("MtkW2GloCfg", rawRead(WFDMA0_GLO_CFG));
     step("W2 pass: WFDMA rings up");
@@ -430,8 +412,8 @@ int MtkWlan::hwStart() {
     if (drv < 0) { step("W3 fail: drv_own before firmware"); return -4; }
     rmw(PCIE_MAC_PM, 1u << 8, 1u << 8);                                           // L0S_DIS
 
-    setProperty("MtkFwPatchSha256", mtk_fw_patch_sha256);
-    setProperty("MtkFwRamSha256", mtk_fw_ram_sha256);
+    setProperty("MtkFwPatchSha256", chip->patch.sha256);
+    setProperty("MtkFwRamSha256", chip->ram.sha256);
     int p = loadPatch();
     setNum("MtkW3PatchResult", (uint32_t)p);
     if (p) { step("W3 fail: patch download"); return -5; }
@@ -520,10 +502,10 @@ void MtkWlan::quiesce(const char *why) {
     int drv = drvOwn();
     rawWrite(WFDMA0_GLO_CFG, rawRead(WFDMA0_GLO_CFG) & ~(GLO_TX_DMA_EN | GLO_RX_DMA_EN));
     bool idle = pollMsec(WFDMA0_GLO_CFG, GLO_TX_DMA_BUSY | GLO_RX_DMA_BUSY, 0, 100, 1);
-    rmw(WFSYS_SW_RST_B_REG, 1u << 0, 0);
+    rmw(chip->wfsysRst, 1u << 0, 0);
     IOSleep(50);
-    rmw(WFSYS_SW_RST_B_REG, 1u << 0, 1u << 0);
-    bool rst = pollMsec(WFSYS_SW_RST_B_REG, 1u << 4, 1u << 4, 500, 10);
+    rmw(chip->wfsysRst, 1u << 0, 1u << 0);
+    bool rst = pollMsec(chip->wfsysRst, 1u << 4, 1u << 4, 500, 10);
     pci->setBusMasterEnable(false);                               // no DMA into host memory past this point
     IOLog("MtkWlan: quiesced for %s (drv_own %d, dma idle %d, wfsys reset %d)\n", why, drv, idle, rst);
 }
