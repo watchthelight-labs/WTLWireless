@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: src/MtkJoin.cpp | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkJoin.cpp | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC AND BSD-3-Clause-Clear
 // W5: join a network (open-system authentication + association), open or WPA2-PSK.
 // The command sequence and the BSS_INFO / STA_REC / ROC / EDCA layouts follow itlmt7925
@@ -14,7 +14,7 @@
 // wanted network (ops table v2 / user client) or an allow-listed open one from the BSS cache. The RX path
 // never issues firmware commands; everything here runs on the tick or the bring-up thread.
 
-#include "MtkWlan.hpp"
+#include "WTLWireless.hpp"
 #include "MtkCrypto.h"
 
 namespace {
@@ -71,7 +71,7 @@ const char *resultName(uint32_t r) {
 } // namespace
 
 // While waiting for an auth / assoc response: a management frame from the AP to us with fc byte 0 == wantFc
-void MtkWlan::noteMgmt(const uint8_t *p, uint32_t len) {
+void WTLWireless::noteMgmt(const uint8_t *p, uint32_t len) {
     if (!wantFc || mgmtLen || len < 32 + 24) return;
     for (uint32_t off = 32; off + 24 <= len && off < 224; off++) {
         if (p[off] != wantFc) continue;
@@ -84,7 +84,7 @@ void MtkWlan::noteMgmt(const uint8_t *p, uint32_t len) {
     }
 }
 
-void MtkWlan::parseAp() {
+void WTLWireless::parseAp() {
     static const uint8_t r5g[8] = {12, 18, 24, 36, 48, 72, 96, 108};   // 500 kb/s units, mac80211 5 GHz indices
     apSupp = apBasic = 0;
     for (const uint8_t *ie = tgtIe, *end = tgtIe + tgtIeLen; ie + 2 <= end && ie + 2 + ie[1] <= end; ie += 2 + ie[1]) {
@@ -136,7 +136,7 @@ void MtkWlan::parseAp() {
     }
 }
 
-int MtkWlan::bssInfo(bool enable) {
+int WTLWireless::bssInfo(bool enable) {
     Msg m;
     m.init(4);
     m.b[0] = BSS_IDX;
@@ -188,7 +188,7 @@ int MtkWlan::bssInfo(bool enable) {
 }
 
 // EDCA_UPDATE (mt7925_mcu_set_tx): station defaults, overridden by the AP's WMM parameter element
-int MtkWlan::edca() {
+int WTLWireless::edca() {
     uint8_t aifs[4] = {2, 2, 3, 7}, ecwMin[4] = {2, 3, 4, 4}, ecwMax[4] = {3, 4, 10, 10};
     uint16_t txop[4] = {47, 94, 0, 0};
     static const uint8_t aciToAc[4] = {2, 3, 1, 0};
@@ -222,7 +222,7 @@ int MtkWlan::edca() {
 
 // STA_REC_UPDATE for the AP; state 0 none, 2 associated. conn_state is PORT_SECURE from the first record on,
 // as Linux (mt76_connac_mcu_sta_cmd, enable) and itlmt7925 send it: the data port is gated on the host.
-int MtkWlan::staRec(uint8_t state, bool newly, uint16_t aidArg) {
+int WTLWireless::staRec(uint8_t state, bool newly, uint16_t aidArg) {
     Msg m;
     m.init(8);
     m.b[0] = BSS_IDX;
@@ -281,7 +281,7 @@ int MtkWlan::staRec(uint8_t state, bool newly, uint16_t aidArg) {
 
 // The disable form of the station record (mt76_connac_mcu_sta_basic_tlv with enable = false): conn_state
 // DISCONNECT, extra info VER only. Sent when we leave or lose the AP, before the next joinStart adds a new record.
-int MtkWlan::staRemove() {
+int WTLWireless::staRemove() {
     Msg m;
     m.init(8);
     m.b[0] = BSS_IDX;
@@ -300,7 +300,7 @@ int MtkWlan::staRemove() {
 
 // STA_REC_BA (mt7925_mcu_sta_ba): tid, ba_type (1 originator, 2 recipient), amsdu, ba_en = enable << tid,
 // ssn, winsize
-int MtkWlan::staBa(uint8_t tid, uint16_t ssn, uint16_t win, bool tx, bool enable) {
+int WTLWireless::staBa(uint8_t tid, uint16_t ssn, uint16_t win, bool tx, bool enable) {
     Msg m;
     m.init(8);
     m.b[0] = BSS_IDX;
@@ -320,7 +320,7 @@ int MtkWlan::staBa(uint8_t tid, uint16_t ssn, uint16_t win, bool tx, bool enable
 // STA_REC_KEY_V3 (struct sta_rec_sec_uni, mt7925_mcu_sta_key_tlv): the pairwise key on the AP's record
 // (WCID 1, muar_idx 0), the group key on the broadcast record (WCID 19, muar_idx 0xe, as Linux installs it on
 // the interface's own WCID). 16 bytes = CCMP, 32 bytes = TKIP with the two MIC halves swapped for a station.
-int MtkWlan::staKey(bool pairwise, uint8_t keyId, const uint8_t *key, uint8_t keyLen, bool add) {
+int WTLWireless::staKey(bool pairwise, uint8_t keyId, const uint8_t *key, uint8_t keyLen, bool add) {
     if (keyLen != 16 && keyLen != 32) return -1;
     uint16_t wcid = pairwise ? AP_WCID : BMC_WCID;
     Msg m;
@@ -354,7 +354,7 @@ int MtkWlan::staKey(bool pairwise, uint8_t keyId, const uint8_t *key, uint8_t ke
     return rc;
 }
 
-int MtkWlan::roc(bool acquire) {
+int WTLWireless::roc(bool acquire) {
     uint8_t req[4 + 24] = {};
     uint8_t *t = req + 4;
     if (acquire) {
@@ -383,7 +383,7 @@ int MtkWlan::roc(bool acquire) {
 }
 
 // Fixed-rate table (idx 14..25: CCK 1/2/5.5/11, OFDM 6..54) and WTBL admission counters (m3HwPrep)
-void MtkWlan::hwPrep() {
+void WTLWireless::hwPrep() {
     static const uint16_t rates[12] = {0, 1, 2, 3, (1 << 6) | 11, (1 << 6) | 15, (1 << 6) | 10, (1 << 6) | 14,
                                        (1 << 6) | 9, (1 << 6) | 13, (1 << 6) | 8, (1 << 6) | 12};
     for (int i = 0; i < 12; i++) {
@@ -402,7 +402,7 @@ void MtkWlan::hwPrep() {
 // the RSN element for a WPA2-PSK target (after the rates, before HT Capabilities: 802.11 element order), and with
 // ht the HT and VHT capabilities of the MT7925 (mt7925/init.c, 2 streams, no beamforming, no A-MSDU above
 // 3839 bytes) plus the WMM information element.
-uint8_t *MtkWlan::assocIes(uint8_t *p, bool ht) {
+uint8_t *WTLWireless::assocIes(uint8_t *p, bool ht) {
     uint16_t cap = tgtCh > 14 ? 0x0401 : 0x0421;
     if (tgtRsn) cap |= 0x0010;                  // Privacy
     put16(p, cap); p += 2;
@@ -440,7 +440,7 @@ uint8_t *MtkWlan::assocIes(uint8_t *p, bool ht) {
 
 // ---------------------------------------------------------------- join machine (tick)
 
-void MtkWlan::mgmtHeader(uint8_t *f, uint8_t fc0) {
+void WTLWireless::mgmtHeader(uint8_t *f, uint8_t fc0) {
     bzero(f, 24);
     f[0] = fc0;
     memcpy(f + 4, tgtBssid, 6);
@@ -449,7 +449,7 @@ void MtkWlan::mgmtHeader(uint8_t *f, uint8_t fc0) {
 }
 
 // Open-system authentication: algorithm 0, transaction 1. The response is caught by noteMgmt (wantFc 0xb0).
-void MtkWlan::sendAuth() {
+void WTLWireless::sendAuth() {
     uint8_t f[30];
     mgmtHeader(f, 0xb0);
     put16(f + 24, 0); put16(f + 26, 1); put16(f + 28, 0);
@@ -461,7 +461,7 @@ void MtkWlan::sendAuth() {
 }
 
 // Association request (HT/VHT + WMM on the first pass when the AP offers HT, legacy on the second)
-void MtkWlan::sendAssoc() {
+void WTLWireless::sendAssoc() {
     uint8_t f[320];
     mgmtHeader(f, 0x00);
     uint8_t *p = assocIes(f + 24, joinHtPass);
@@ -473,7 +473,7 @@ void MtkWlan::sendAssoc() {
 }
 
 // Start joining the cached BSS idx: copy it into tgt*, prepare the firmware records, ask for the channel
-bool MtkWlan::joinStart(int idx) {
+bool WTLWireless::joinStart(int idx) {
     if (idx < 0 || idx >= nBss || fwDead || joinState != 0) return false;
     const MtkBss &b = bss[idx];
     memcpy(tgtBssid, b.bssid, 6);
@@ -519,7 +519,7 @@ bool MtkWlan::joinStart(int idx) {
 }
 
 // One step of the join per tick. Every state has a deadline; auth and assoc resend up to JOIN_TRIES times.
-void MtkWlan::joinService() {
+void WTLWireless::joinService() {
     switch (joinState) {
     case 1:                                     // waiting for the channel (ROC grant event 0x27)
         if (rocGrant) {
@@ -608,7 +608,7 @@ void MtkWlan::joinService() {
 }
 
 // The port is open: tell the front end and the manager
-void MtkWlan::joinUp() {
+void WTLWireless::joinUp() {
     // held across the 4-way handshake: releasing it right after association made the chip miss message 3
     if (rocHeld) { roc(false); rocHeld = false; }
     portOpen = true;
@@ -624,7 +624,7 @@ void MtkWlan::joinUp() {
     step(s);
 }
 
-void MtkWlan::joinFail(uint32_t result) {
+void WTLWireless::joinFail(uint32_t result) {
     joinTeardown(linkUp ? REASON_LEAVING : 0);
     lastResult = result;
     joinFailures++;
@@ -636,7 +636,7 @@ void MtkWlan::joinFail(uint32_t result) {
 
 // Leave the AP: deauthenticate when asked (reason != 0 and still associated), forget keys and sessions, remove
 // the firmware records (best effort), back to idle. Never called from the RX path (the tick does it).
-void MtkWlan::joinTeardown(uint16_t reason) {
+void WTLWireless::joinTeardown(uint16_t reason) {
     uint8_t prev = joinState;
     if (reason && linkUp) {
         uint8_t f[26];
@@ -668,7 +668,7 @@ void MtkWlan::joinTeardown(uint16_t reason) {
 
 // Best cached BSS for the wanted network that we can join with what we have; -1 when none. Sets lastResult to
 // NOT_FOUND (SSID not seen) or SECURITY (seen, but not joinable with / without the key given).
-int MtkWlan::cmPick() {
+int WTLWireless::cmPick() {
     bool bssidSet = false;
     for (int i = 0; i < 6; i++) if (wantBssid[i]) bssidSet = true;
     int best = -1, bestScore = 0;
@@ -688,7 +688,7 @@ int MtkWlan::cmPick() {
 
 // Best open BSS whose SSID is exactly one of MtkAutoOpenSsids; after a failure, not the same BSS again when
 // another candidate exists
-int MtkWlan::cmPickOpen() {
+int WTLWireless::cmPickOpen() {
     int best = -1, bestScore = 0, alt = -1, altScore = 0;
     for (int i = 0; i < nBss; i++) {
         const MtkBss &b = bss[i];
@@ -708,7 +708,7 @@ int MtkWlan::cmPickOpen() {
 }
 
 // Best BSS of a saved MtkAutoNetworks entry that we can join with its PMK; *net = which entry
-int MtkWlan::cmPickSaved(int *net) {
+int WTLWireless::cmPickSaved(int *net) {
     int best = -1, bestScore = 0;
     for (int i = 0; i < nBss; i++) {
         const MtkBss &b = bss[i];
@@ -723,7 +723,7 @@ int MtkWlan::cmPickSaved(int *net) {
 }
 
 // Outcome of a join: reset or grow the backoff (5, 10, 20, 40, 60 s), tell a v2 front end
-void MtkWlan::cmResult(uint32_t result) {
+void WTLWireless::cmResult(uint32_t result) {
     lastResult = result;
     if (result == MTK_JOIN_OK) {
         cmFails = 0;
@@ -738,7 +738,7 @@ void MtkWlan::cmResult(uint32_t result) {
     if (feJoinResult && fe.ctx) feJoinResult(fe.ctx, (int)result, tgtBssid);
 }
 
-void MtkWlan::cmService() {
+void WTLWireless::cmService() {
     // requests from the user client / ops table: the teardown runs here, never on the caller's thread
     if (disconnectPending) {
         disconnectPending = false;
@@ -825,14 +825,14 @@ void MtkWlan::cmService() {
 // ---------------------------------------------------------------- core entry points (gate held)
 
 // These only set flags and copy data; the tick does the firmware work, so the caller never sleeps in uniCmd.
-int MtkWlan::coreScan() {
+int WTLWireless::coreScan() {
     if (fwDead || !timer) return -2;
     scanWanted = true;
     userScanPending = true;
     return 0;
 }
 
-int MtkWlan::coreJoin(const mtk_join_params *p) {
+int WTLWireless::coreJoin(const mtk_join_params *p) {
     if (!p || p->version != MTK_USER_API_VERSION || p->ssid_len < 1 || p->ssid_len > 32) return -1;
     if (p->key_type != MTK_KEY_NONE && p->key_type != MTK_KEY_PMK) return -1;
     if (fwDead || !timer) return -2;
@@ -864,7 +864,7 @@ int MtkWlan::coreJoin(const mtk_join_params *p) {
     return 0;
 }
 
-int MtkWlan::coreDisconnect() {
+int WTLWireless::coreDisconnect() {
     disconnectPending = true;
     wantActive = false;
     wantHasPmk = false;
@@ -874,7 +874,7 @@ int MtkWlan::coreDisconnect() {
     return 0;
 }
 
-void MtkWlan::coreStatus(mtk_status *out) {
+void WTLWireless::coreStatus(mtk_status *out) {
     bzero(out, sizeof(*out));
     out->version = MTK_USER_API_VERSION;
     if (joinState == 5) out->state = MTK_ST_CONNECTED;
@@ -915,7 +915,7 @@ void MtkWlan::coreStatus(mtk_status *out) {
 }
 
 // Copy up to max cache entries, best first
-uint32_t MtkWlan::coreResults(mtk_scan_result *out, uint32_t max) {
+uint32_t WTLWireless::coreResults(mtk_scan_result *out, uint32_t max) {
     bool used[MTK_BSS_CACHE] = {};
     uint32_t n = 0;
     while (n < max && (int)n < nBss) {
@@ -947,7 +947,7 @@ uint32_t MtkWlan::coreResults(mtk_scan_result *out, uint32_t max) {
 }
 
 // The cached BSS at index in best-first order (as coreResults), with its elements
-int MtkWlan::coreGetBss(uint32_t index, mtk_bss_info *out) {
+int WTLWireless::coreGetBss(uint32_t index, mtk_bss_info *out) {
     if (!out || (int)index >= nBss) return -1;
     bool used[MTK_BSS_CACHE] = {};
     int best = -1;
@@ -985,8 +985,8 @@ int MtkWlan::coreGetBss(uint32_t index, mtk_bss_info *out) {
 }
 
 // The user client's calls land here through workLoop->runAction (MtkUserClient.cpp)
-IOReturn MtkWlan::gatedUserCall(OSObject *owner, void *sel, void *in, void *out, void *outSize) {
-    MtkWlan *self = OSDynamicCast(MtkWlan, owner);
+IOReturn WTLWireless::gatedUserCall(OSObject *owner, void *sel, void *in, void *out, void *outSize) {
+    WTLWireless *self = OSDynamicCast(WTLWireless, owner);
     if (!self) return kIOReturnBadArgument;
     uint32_t selector = (uint32_t)(uintptr_t)sel;
     uint32_t *osz = static_cast<uint32_t *>(outSize);

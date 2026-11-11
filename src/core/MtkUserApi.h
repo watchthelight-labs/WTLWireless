@@ -1,6 +1,6 @@
-// <wtl> project: mtkwlan | file: src/MtkUserApi.h | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkUserApi.h | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC
-// Data shapes shared by the MtkWlan core, its ops table v2 (MtkCoreApi.h), the IOUserClient (MtkUserClient.cpp)
+// Data shapes shared by the WTLWireless core, its ops table v2 (MtkCoreApi.h), the IOUserClient (MtkUserClient.cpp)
 // and the userspace tool tools/mtkwifi. Only fixed-size integer fields, so the layout is the same in the
 // kernel and in a 64-bit user process. Bump MTK_USER_API_VERSION on any change.
 
@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 #define MTK_USER_API_VERSION   1
-#define MTK_USER_CLIENT_CLASS  "MtkWlanUserClient"
+#define MTK_USER_CLIENT_CLASS  "WTLWirelessUserClient"
 #define MTK_SCAN_MAX           48     // the most results one get_scan_results call returns (the core caches more)
 
 // IOUserClient selectors (IOConnectCall*Method)

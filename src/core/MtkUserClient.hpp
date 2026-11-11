@@ -1,17 +1,17 @@
-// <wtl> project: mtkwlan | file: src/MtkUserClient.hpp | author: watchthelight </wtl>
-// MtkWlanUserClient: the IOUserClient of the MtkWlan core for tools/mtkwifi (MtkUserApi.h selectors).
+// <wtl> project: wtlwireless | file: src/core/MtkUserClient.hpp | author: watchthelight </wtl>
+// WTLWirelessUserClient: the IOUserClient of the WTLWireless core for tools/mtkwifi (MtkUserApi.h selectors).
 // Scan, join and disconnect need an administrator task; results and status do not. Every call runs on the core's
-// work loop gate (MtkWlan::gatedUserCall) and only sets flags or copies snapshots, so it never sleeps in a
+// work loop gate (WTLWireless::gatedUserCall) and only sets flags or copies snapshots, so it never sleeps in a
 // firmware command; it may wait for the gate while a tick is inside one (3 s worst case).
 
 #ifndef MTKUSERCLIENT_HPP
 #define MTKUSERCLIENT_HPP
 
 #include <IOKit/IOUserClient.h>
-#include "MtkWlan.hpp"
+#include "WTLWireless.hpp"
 
-class MtkWlanUserClient : public IOUserClient {
-    OSDeclareDefaultStructors(MtkWlanUserClient)
+class WTLWirelessUserClient : public IOUserClient {
+    OSDeclareDefaultStructors(WTLWirelessUserClient)
 
 public:
     bool initWithTask(task_t owningTask, void *securityID, UInt32 type, OSDictionary *properties) override;
@@ -32,7 +32,7 @@ public:
 private:
     IOReturn call(uint32_t selector, const void *in, void *out, uint32_t *outSize);
 
-    MtkWlan *core = nullptr;
+    WTLWireless *core = nullptr;
     task_t task = nullptr;
     bool admin = false;
 };

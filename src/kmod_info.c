@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: src/kmod_info.c | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/kmod_info.c | author: watchthelight </wtl>
 // The kmod_info block Xcode generates for every kext. KEXT_ID and KEXT_VERSION come from the Makefile.
 #include <mach/mach_types.h>
 

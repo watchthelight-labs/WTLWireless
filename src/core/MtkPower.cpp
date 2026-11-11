@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: src/MtkPower.cpp | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkPower.cpp | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC
 // TX power: the firmware's country limit tables (CLC) and the per-rate power limits (SKU), which the
 // driver sent nothing of before 0.7.0. Ported from Linux mt76 v6.18 (Copyright (C) 2023 MediaTek Inc., ISC):
@@ -12,7 +12,7 @@
 // units in the SKU); the firmware still applies the CLC table and its own calibration on top.
 // Info.plist MtkPower = false skips all of it.
 
-#include "MtkWlan.hpp"
+#include "WTLWireless.hpp"
 
 
 namespace {
@@ -28,7 +28,7 @@ inline void put32(uint8_t *p, uint32_t v) { for (int i = 0; i < 4; i++) p[i] = (
 } // namespace
 
 // mt7925_mcu_read_eeprom: one byte of the efuse/EEPROM buffer through an EFUSE_CTRL query
-int MtkWlan::readEeprom(uint32_t offset, uint8_t *val) {
+int WTLWireless::readEeprom(uint32_t offset, uint8_t *val) {
     uint8_t req[4 + 4 + 4 + 4 + EEPROM_BLOCK] = {};
     put16(req + 4, 1);                            // tag
     put16(req + 6, sizeof(req) - 4);
@@ -45,7 +45,7 @@ int MtkWlan::readEeprom(uint32_t offset, uint8_t *val) {
 }
 
 // The CLC tables (idx 0 power, 1 power ext) inside the RAM firmware's non-downloaded CLC region
-int MtkWlan::clcStage() {
+int WTLWireless::clcStage() {
     uint8_t hw = 0;
     int rc = readEeprom(MT_EE_HW_TYPE, &hw);
     setNum("MtkW9EepromHwType", rc ? 0xffff0000u | (uint16_t)rc : hw);
@@ -117,7 +117,7 @@ int MtkWlan::clcStage() {
 }
 
 // mt7925_mcu_rate_txpower_band: per-channel SKU limits, 3 channels per message
-int MtkWlan::ratePowerBand(bool is5g, int8_t halfDbm) {
+int WTLWireless::ratePowerBand(bool is5g, int8_t halfDbm) {
     static const uint8_t ch2[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14};
     static const uint8_t ch5[] = {36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 100, 102, 104, 106, 108, 110,
                                   112, 114, 116, 118, 120, 122, 124, 126, 128, 132, 134, 136, 138, 140, 142, 144, 149, 151,
@@ -155,7 +155,7 @@ int MtkWlan::ratePowerBand(bool is5g, int8_t halfDbm) {
 }
 
 // Linux order (mt7925_regd_update): CLC, then the channel domain, then the per-rate limits
-int MtkWlan::powerStage(bool afterDomain) {
+int WTLWireless::powerStage(bool afterDomain) {
     if (!powerOn) { setProperty("MtkW9Power", "off (MtkPower false)"); return 0; }
     if (!afterDomain) { clcResult = clcStage(); return clcResult; }
     int f2 = ratePowerBand(false, 40), f5 = ratePowerBand(true, 46);

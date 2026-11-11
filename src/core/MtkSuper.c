@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: src/MtkSuper.c | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkSuper.c | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC
 // See MtkSuper.h.
 

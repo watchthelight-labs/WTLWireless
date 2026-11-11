@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: src/MtkDma.hpp | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkDma.hpp | author: watchthelight </wtl>
 // DMA memory for the MT7925: one physically contiguous block, mapped for the device through
 // IODMACommand (so AppleVTD/IOMapper translates it), with a device address below 4 GB because
 // mt7925_pci_probe sets a 32-bit DMA mask.

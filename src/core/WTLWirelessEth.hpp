@@ -1,7 +1,7 @@
-// <wtl> project: mtkwlan | file: src/MtkWlanEth.hpp | author: watchthelight </wtl>
-// MtkWlanEth: the Ethernet front end (en1) of the MtkWlan core, moved out of MtkWlan in 0.8.0 (W0).
+// <wtl> project: wtlwireless | file: src/core/WTLWirelessEth.hpp | author: watchthelight </wtl>
+// WTLWirelessEth: the Ethernet front end (en1) of the WTLWireless core, moved out of WTLWireless in 0.8.0 (W0).
 // The core creates it as its child and starts it once the join passed. It talks to the core only through
-// the C ops table in MtkCoreApi.h (as the later MtkWlanNative kext will), and shares the core's work
+// the C ops table in MtkCoreApi.h (as the later WTLWirelessNative kext will), and shares the core's work
 // loop, so TX, enable/disable and the core's 1 ms tick are serialised by one gate as before.
 
 #ifndef MTKWLANETH_HPP
@@ -15,8 +15,8 @@
 #include <sys/kpi_mbuf.h>
 #include "MtkCoreApi.h"
 
-class MtkWlanEth : public IOEthernetController {
-    OSDeclareDefaultStructors(MtkWlanEth)
+class WTLWirelessEth : public IOEthernetController {
+    OSDeclareDefaultStructors(WTLWirelessEth)
 
 public:
     bool start(IOService *provider) override;

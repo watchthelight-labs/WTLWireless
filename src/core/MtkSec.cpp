@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: src/MtkSec.cpp | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkSec.cpp | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC
 // W2: WPA2-PSK glue between the data path and the supplicant in MtkSupp.c.
 // EAPOL frames from the AP are queued by rxFrame (MtkNet.cpp) and fed to mtk_supp_rx from the tick
@@ -8,7 +8,7 @@
 // WPA2 security values (mt7925_mcu_bss_sec_tlv, what Linux sends at its first set_key), the pairwise key, the
 // group key, then the port opens and en1 reports link up.
 
-#include "MtkWlan.hpp"
+#include "WTLWireless.hpp"
 #include "MtkCrypto.h"
 #include <sys/random.h>
 
@@ -20,7 +20,7 @@ constexpr uint32_t M4_FREE_WAIT_TICKS = 100;
 const uint8_t kSnap[6] = {0xaa, 0xaa, 0x03, 0x00, 0x00, 0x00};
 } // namespace
 
-void MtkWlan::secReset() {
+void WTLWireless::secReset() {
     mtk_supp_clear(&supp);
     suppActive = false;
     ptkInstalled = false;
@@ -35,8 +35,8 @@ void MtkWlan::secReset() {
 // Associated to a WPA2-PSK network: arm the supplicant with the PMK, our RSN element (the one in the association
 // request) and the AP's (its beacon's, for the message 3 check). The EAPOL queue is left alone: message 1 may
 // already be waiting in it.
-void MtkWlan::secStart() {
-    mtk_supp_ops ops = {this, &MtkWlan::secSendEapol, &MtkWlan::secInstallPtk, &MtkWlan::secInstallGtk, &MtkWlan::secRandom};
+void WTLWireless::secStart() {
+    mtk_supp_ops ops = {this, &WTLWireless::secSendEapol, &WTLWireless::secInstallPtk, &WTLWireless::secInstallGtk, &WTLWireless::secRandom};
     uint8_t own[64];
     size_t ownLen = mtk_rsn_ie_psk(own, tgtGroup);
     mtk_supp_init(&supp, &ops, wantPmk, tgtBssid, mac, own, ownLen, tgtRsnIe, tgtRsnIeLen);
@@ -48,7 +48,7 @@ void MtkWlan::secStart() {
 }
 
 // From rxFrame: one EAPOL frame (version byte first) from the AP, protected or not
-void MtkWlan::secQueueEapol(const uint8_t *p, uint32_t len) {
+void WTLWireless::secQueueEapol(const uint8_t *p, uint32_t len) {
     if (len < 4 || len > MTK_EAPOL_MAX) { eapolQDropped++; return; }
     uint8_t next = (uint8_t)((eapolQHead + 1) % 4);
     if (next == eapolQTail) { eapolQDropped++; return; }
@@ -59,7 +59,7 @@ void MtkWlan::secQueueEapol(const uint8_t *p, uint32_t len) {
 }
 
 // Tick: feed the supplicant, then install whatever keys it handed over
-void MtkWlan::secService() {
+void WTLWireless::secService() {
     while (eapolQTail != eapolQHead) {
         if (!suppActive) {
             if (joinState == 3) break;          // message 1 ahead of the association response: keep it for secStart
@@ -93,7 +93,7 @@ void MtkWlan::secService() {
 // Install the pending keys once the last EAPOL frame we sent (message 4, or a protected message 4 on a PTK
 // rekey, or group message 2) has left the card, so the frame cannot go out under the new key. Returns false
 // while still waiting or after a failure (joinFail was called).
-bool MtkWlan::secInstallService() {
+bool WTLWireless::secInstallService() {
     if (eapolSlot >= 0) {
         if (txBusy[eapolSlot] && ticks - eapolSentAt < M4_FREE_WAIT_TICKS) return false;
         eapolSlot = -1;
@@ -131,7 +131,7 @@ bool MtkWlan::secInstallService() {
 
 // CCMP replay check at delivery (after the block-ack reorder), as mt76_check_ccmp_pn: a PN not above the last one
 // accepted on that key and TID is a replay. slot -1 = not a protected CCMP frame, nothing to check.
-bool MtkWlan::pnAccept(int slot, uint64_t pn) {
+bool WTLWireless::pnAccept(int slot, uint64_t pn) {
     if (slot < 0) return true;
     if (pn <= rxPn[slot]) { rxPnReplays++; return false; }
     rxPn[slot] = pn;
@@ -142,7 +142,7 @@ bool MtkWlan::pnAccept(int slot, uint64_t pn) {
 // (what mac80211's USE_MINRATE gives EAPOL), TX status on, block ack off. protect = the hardware encrypts it with
 // the installed PTK (FC Protected and TXD3 PROTECT_FRAME). Never polls; remembers the slot so a key install can
 // wait until the frame has left.
-bool MtkWlan::txEapol(const uint8_t *eapol, uint32_t len, bool protect) {
+bool WTLWireless::txEapol(const uint8_t *eapol, uint32_t len, bool protect) {
     if (!linkUp || len + 34 > 1900) return false;
     if (!txSlotReady(true)) return false;
     uint8_t *f = txData.bufs.va + txData.head * txData.bufSize + 128;
@@ -170,19 +170,19 @@ bool MtkWlan::txEapol(const uint8_t *eapol, uint32_t len, bool protect) {
 
 // ---------------------------------------------------------------- supplicant callbacks (inside mtk_supp_rx)
 
-int MtkWlan::secSendEapol(void *ctx, const uint8_t *f, size_t n, int protect) {
-    return static_cast<MtkWlan *>(ctx)->txEapol(f, (uint32_t)n, protect != 0) ? 0 : -1;
+int WTLWireless::secSendEapol(void *ctx, const uint8_t *f, size_t n, int protect) {
+    return static_cast<WTLWireless *>(ctx)->txEapol(f, (uint32_t)n, protect != 0) ? 0 : -1;
 }
 
-int MtkWlan::secInstallPtk(void *ctx, const uint8_t tk[16]) {
-    MtkWlan *self = static_cast<MtkWlan *>(ctx);
+int WTLWireless::secInstallPtk(void *ctx, const uint8_t tk[16]) {
+    WTLWireless *self = static_cast<WTLWireless *>(ctx);
     memcpy(self->pendingTk, tk, 16);
     self->pendingTkSet = true;
     return 0;
 }
 
-int MtkWlan::secInstallGtk(void *ctx, int keyid, const uint8_t *gtk, size_t gtklen, const uint8_t rsc[8]) {
-    MtkWlan *self = static_cast<MtkWlan *>(ctx);
+int WTLWireless::secInstallGtk(void *ctx, int keyid, const uint8_t *gtk, size_t gtklen, const uint8_t rsc[8]) {
+    WTLWireless *self = static_cast<WTLWireless *>(ctx);
     if (gtklen != 16 && gtklen != 32) return -1;
     memcpy(self->pendingGtk, gtk, gtklen);
     memcpy(self->pendingGtkRsc, rsc, 8);        // seeds the group replay counters at install time
@@ -192,6 +192,6 @@ int MtkWlan::secInstallGtk(void *ctx, int keyid, const uint8_t *gtk, size_t gtkl
     return 0;
 }
 
-void MtkWlan::secRandom(void *, uint8_t *buf, size_t n) {
+void WTLWireless::secRandom(void *, uint8_t *buf, size_t n) {
     read_random(buf, (u_int)n);
 }

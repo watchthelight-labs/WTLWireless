@@ -1,35 +1,35 @@
-// <wtl> project: mtkwlan | file: src/MtkWlanEth.cpp | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/WTLWirelessEth.cpp | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC
-// Ethernet front end (IOEthernetController, en1) over the MtkWlan core. The IONetworkController half of
+// Ethernet front end (IOEthernetController, en1) over the WTLWireless core. The IONetworkController half of
 // the 0.7.0 MtkNet.cpp, moved here unchanged in behaviour: output queue of 64 on the core's work loop,
 // medium "auto" at 54 Mb/s, link Valid|Active while associated and enabled. The 802.11 framing, rings
 // and counters stay in the core (MtkNet.cpp), reached through MtkCoreApi.h.
 // 0.9.0: the front end starts before any association, so the link is published as valid and inactive at once
 // (configd sees "no carrier" instead of an unknown link and does not start DHCP on a dead interface).
 
-#include "MtkWlanEth.hpp"
+#include "WTLWirelessEth.hpp"
 #include <IOKit/IOLib.h>
 #include <IOKit/network/IOGatedOutputQueue.h>
 
-OSDefineMetaClassAndStructors(MtkWlanEth, IOEthernetController)
+OSDefineMetaClassAndStructors(WTLWirelessEth, IOEthernetController)
 
 namespace {
 constexpr uint32_t TXQ_CAPACITY = 64;
 } // namespace
 
-bool MtkWlanEth::start(IOService *provider) {
+bool WTLWirelessEth::start(IOService *provider) {
     // the ops table and the work loop come from the core before IONetworkController::start asks for them
     if (!provider || provider->callPlatformFunction(MTK_CORE_OPS_V1, false, (void *)&ops, &core, nullptr, nullptr) !=
                          kIOReturnSuccess || !ops || !core) {
-        IOLog("MtkWlanEth: no core ops table\n");
+        IOLog("WTLWirelessEth: no core ops table\n");
         return false;
     }
     if (ops->version != MTK_CORE_API_VERSION || ops->size < sizeof(mtk_core_ops)) {
-        IOLog("MtkWlanEth: core ops version %u size %u not supported\n", ops->version, ops->size);
+        IOLog("WTLWirelessEth: core ops version %u size %u not supported\n", ops->version, ops->size);
         return false;
     }
     workLoop = provider->getWorkLoop();
-    if (!workLoop) { IOLog("MtkWlanEth: core has no work loop\n"); return false; }
+    if (!workLoop) { IOLog("WTLWirelessEth: core has no work loop\n"); return false; }
     workLoop->retain();
     if (!IOEthernetController::start(provider))
         return false;
@@ -38,7 +38,7 @@ bool MtkWlanEth::start(IOService *provider) {
     medium = IONetworkMedium::medium(kIOMediumEthernetAuto, 54000000ULL);
     if (!md || !medium || !IONetworkMedium::addMedium(md, medium) || !publishMediumDictionary(md)) {
         OSSafeReleaseNULL(md);
-        IOLog("MtkWlanEth: medium dictionary\n");
+        IOLog("WTLWirelessEth: medium dictionary\n");
         return false;
     }
     md->release();
@@ -49,18 +49,18 @@ bool MtkWlanEth::start(IOService *provider) {
     cb.version = MTK_CORE_API_VERSION;
     cb.size = sizeof(cb);
     cb.ctx = this;
-    cb.rx_alloc = &MtkWlanEth::cbRxAlloc;
-    cb.rx = &MtkWlanEth::cbRx;
-    cb.rx_flush = &MtkWlanEth::cbRxFlush;
-    cb.link = &MtkWlanEth::cbLink;
-    cb.tx_space = &MtkWlanEth::cbTxSpace;
-    if (ops->set_callbacks(core, &cb)) { IOLog("MtkWlanEth: core refused the callbacks\n"); return false; }
+    cb.rx_alloc = &WTLWirelessEth::cbRxAlloc;
+    cb.rx = &WTLWirelessEth::cbRx;
+    cb.rx_flush = &WTLWirelessEth::cbRxFlush;
+    cb.link = &WTLWirelessEth::cbLink;
+    cb.tx_space = &WTLWirelessEth::cbTxSpace;
+    if (ops->set_callbacks(core, &cb)) { IOLog("WTLWirelessEth: core refused the callbacks\n"); return false; }
     registered = true;
 
     if (!attachInterface((IONetworkInterface **)&netif, false)) {
         ops->set_callbacks(core, nullptr);
         registered = false;
-        IOLog("MtkWlanEth: attachInterface\n");
+        IOLog("WTLWirelessEth: attachInterface\n");
         return false;
     }
     netif->registerService();
@@ -69,7 +69,7 @@ bool MtkWlanEth::start(IOService *provider) {
     return true;
 }
 
-void MtkWlanEth::stop(IOService *provider) {
+void WTLWirelessEth::stop(IOService *provider) {
     // gated in the core: after this the tick no longer calls into this object
     if (registered) {
         ops->set_callbacks(core, nullptr);
@@ -82,7 +82,7 @@ void MtkWlanEth::stop(IOService *provider) {
     IOEthernetController::stop(provider);
 }
 
-void MtkWlanEth::free() {
+void WTLWirelessEth::free() {
     OSSafeReleaseNULL(medium);
     // IONetworkController::free may still ask getWorkLoop(), so the reference goes after it
     IOWorkLoop *wl = workLoop;
@@ -92,52 +92,52 @@ void MtkWlanEth::free() {
 
 // ---------------------------------------------------------------- core callbacks (gate held)
 
-mbuf_t MtkWlanEth::cbRxAlloc(void *ctx, uint32_t len) {
-    return static_cast<MtkWlanEth *>(ctx)->allocatePacket(len);
+mbuf_t WTLWirelessEth::cbRxAlloc(void *ctx, uint32_t len) {
+    return static_cast<WTLWirelessEth *>(ctx)->allocatePacket(len);
 }
 
-void MtkWlanEth::cbRx(void *ctx, mbuf_t m) {
-    MtkWlanEth *self = static_cast<MtkWlanEth *>(ctx);
+void WTLWirelessEth::cbRx(void *ctx, mbuf_t m) {
+    WTLWirelessEth *self = static_cast<WTLWirelessEth *>(ctx);
     if (!self->netif) { self->freePacket(m); return; }
     self->netif->inputPacket(m, (UInt32)mbuf_pkthdr_len(m), IONetworkInterface::kInputOptionQueuePacket);
 }
 
-void MtkWlanEth::cbRxFlush(void *ctx) {
-    MtkWlanEth *self = static_cast<MtkWlanEth *>(ctx);
+void WTLWirelessEth::cbRxFlush(void *ctx) {
+    WTLWirelessEth *self = static_cast<WTLWirelessEth *>(ctx);
     if (self->netif) self->netif->flushInputQueue();
 }
 
-void MtkWlanEth::cbLink(void *ctx, int up, uint64_t speed) {
-    MtkWlanEth *self = static_cast<MtkWlanEth *>(ctx);
+void WTLWirelessEth::cbLink(void *ctx, int up, uint64_t speed) {
+    WTLWirelessEth *self = static_cast<WTLWirelessEth *>(ctx);
     self->setLinkStatus(up ? (kIONetworkLinkValid | kIONetworkLinkActive) : kIONetworkLinkValid,
                         up ? self->medium : nullptr, speed);
 }
 
-void MtkWlanEth::cbTxSpace(void *ctx) {
-    if (IOOutputQueue *q = static_cast<MtkWlanEth *>(ctx)->getOutputQueue())
+void WTLWirelessEth::cbTxSpace(void *ctx) {
+    if (IOOutputQueue *q = static_cast<WTLWirelessEth *>(ctx)->getOutputQueue())
         q->service(IOBasicOutputQueue::kServiceAsync);
 }
 
 // ---------------------------------------------------------------- IOEthernetController
 
-bool MtkWlanEth::createWorkLoop() {
+bool WTLWirelessEth::createWorkLoop() {
     return workLoop != nullptr;
 }
 
-IOWorkLoop *MtkWlanEth::getWorkLoop() const {
+IOWorkLoop *WTLWirelessEth::getWorkLoop() const {
     return workLoop;
 }
 
-IOOutputQueue *MtkWlanEth::createOutputQueue() {
+IOOutputQueue *WTLWirelessEth::createOutputQueue() {
     return IOGatedOutputQueue::withTarget(this, getWorkLoop(), TXQ_CAPACITY);
 }
 
-IOReturn MtkWlanEth::getHardwareAddress(IOEthernetAddress *addr) {
+IOReturn WTLWirelessEth::getHardwareAddress(IOEthernetAddress *addr) {
     if (!ops) return kIOReturnNotReady;
     return ops->get_mac(core, addr->bytes) ? kIOReturnError : kIOReturnSuccess;
 }
 
-IOReturn MtkWlanEth::enable(IONetworkInterface *) {
+IOReturn WTLWirelessEth::enable(IONetworkInterface *) {
     if (IOOutputQueue *q = getOutputQueue()) {
         q->setCapacity(TXQ_CAPACITY);
         q->start();
@@ -146,7 +146,7 @@ IOReturn MtkWlanEth::enable(IONetworkInterface *) {
     return kIOReturnSuccess;
 }
 
-IOReturn MtkWlanEth::disable(IONetworkInterface *) {
+IOReturn WTLWirelessEth::disable(IONetworkInterface *) {
     if (IOOutputQueue *q = getOutputQueue()) {
         q->stop();
         q->setCapacity(0);
@@ -156,14 +156,14 @@ IOReturn MtkWlanEth::disable(IONetworkInterface *) {
     return kIOReturnSuccess;
 }
 
-IOReturn MtkWlanEth::setPromiscuousMode(bool) { return kIOReturnSuccess; }
-IOReturn MtkWlanEth::setMulticastMode(bool) { return kIOReturnSuccess; }
-IOReturn MtkWlanEth::setMulticastList(IOEthernetAddress *, UInt32) { return kIOReturnSuccess; }
-const OSString *MtkWlanEth::newVendorString() const { return OSString::withCString("MediaTek"); }
-const OSString *MtkWlanEth::newModelString() const { return OSString::withCString("MT7925 (MtkWlan)"); }
+IOReturn WTLWirelessEth::setPromiscuousMode(bool) { return kIOReturnSuccess; }
+IOReturn WTLWirelessEth::setMulticastMode(bool) { return kIOReturnSuccess; }
+IOReturn WTLWirelessEth::setMulticastList(IOEthernetAddress *, UInt32) { return kIOReturnSuccess; }
+const OSString *WTLWirelessEth::newVendorString() const { return OSString::withCString("MediaTek"); }
+const OSString *WTLWirelessEth::newModelString() const { return OSString::withCString("MT7925 (WTLWireless)"); }
 
 // Runs on the core's gate (IOGatedOutputQueue on the shared work loop)
-UInt32 MtkWlanEth::outputPacket(mbuf_t m, void *) {
+UInt32 WTLWirelessEth::outputPacket(mbuf_t m, void *) {
     int r = ops->tx(core, m);
     if (r == MTK_TX_STALL) return kIOReturnOutputStall;
     freePacket(m);

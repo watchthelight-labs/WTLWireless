@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: src/MtkDma.cpp | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkDma.cpp | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC
 
 #include "MtkDma.hpp"

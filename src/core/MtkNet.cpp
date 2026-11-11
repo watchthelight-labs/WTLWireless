@@ -1,6 +1,6 @@
-// <wtl> project: mtkwlan | file: src/MtkNet.cpp | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkNet.cpp | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC
-// W6: data path over the BSS joined in W5 (the Ethernet front end itself is MtkWlanEth.cpp from 0.8.0).
+// W6: data path over the BSS joined in W5 (the Ethernet front end itself is WTLWirelessEth.cpp from 0.8.0).
 // TX: Ethernet -> 802.11 data (ToDS, non-QoS, LLC/SNAP) on TX ring 0 in CT mode; TXD per
 //   mt7925_mac_write_txwi / _80211 and hw txp per mt76_connac_write_hw_txp. The token is the slot
 //   index, released by the firmware's TXRX_NOTIFY (mt7925_mac_tx_free).
@@ -15,7 +15,7 @@
 // (status 37), so there is no aggregation yet and no RX reordering is needed.
 // 0.6.1: every 64th unicast data frame asks for a TX status record (rate, power, tries, ACK errors);
 // TX-free headers add attempt counts. Published as MtkW9* to find why upload stays near 9 Mb/s.
-// 0.8.0 (W0): the IONetworkController half moved to MtkWlanEth. This file keeps the 802.11 side and serves
+// 0.8.0 (W0): the IONetworkController half moved to WTLWirelessEth. This file keeps the 802.11 side and serves
 // the ops table (MtkCoreApi.h): txEthernet is the old outputPacket body, received frames go to the
 // front end's rx / rx_flush, link changes to its link callback, a cleared TX stall to tx_space. All of
 // them run on the core work loop gate (tick, or the front end's gated output queue / command gate).
@@ -26,7 +26,7 @@
 // dropped. TX sets FC Protected and TXD3 PROTECT_FRAME once the PTK is installed; the firmware adds the CCMP
 // header and PN. The ops table v2 adds scan / results / join / disconnect / status for a native front end.
 
-#include "MtkWlan.hpp"
+#include "WTLWireless.hpp"
 #include "MtkCrypto.h"
 #include <kern/clock.h>
 
@@ -54,7 +54,7 @@ const uint8_t kBridgeTunnel[6] = {0xaa, 0xaa, 0x03, 0x00, 0x00, 0xf8};
 // The head slot can be filled when the device has fetched every descriptor but one, fewer than
 // TX_INFLIGHT_MAX frames wait for a TX-free, and the firmware has released the slot's token
 // (or TX_LOST_TICKS passed without a release). force (management frames) skips the in-flight cap.
-bool MtkWlan::txSlotReady(bool force) {
+bool WTLWireless::txSlotReady(bool force) {
     uint16_t next = (uint16_t)((txData.head + 1) % txData.n);
     if (next == (rawRead(txData.regs + 12) & 0xffff)) { txRingFull++; return false; }
     if (!force && txInFlight >= txInflightMax) { txCapped++; return false; }
@@ -67,14 +67,14 @@ bool MtkWlan::txSlotReady(bool force) {
     return true;
 }
 
-void MtkWlan::txRelease(uint16_t slot) {
+void WTLWireless::txRelease(uint16_t slot) {
     if (!txBusy[slot]) return;
     txBusy[slot] = false;
     if (txInFlight) txInFlight--;
 }
 
 // Tokens the firmware never released (lost TX-free) stop counting as in flight
-void MtkWlan::txSweep() {
+void WTLWireless::txSweep() {
     for (uint16_t i = 0; i < txData.n; i++)
         if (txBusy[i] && ticks - txBusyAt[i] >= TX_LOST_TICKS) {
             txRelease(i);
@@ -85,7 +85,7 @@ void MtkWlan::txSweep() {
 // TXD + hw txp for the frame already at slot + 128, then kick ring 0
 // rate 0 = no FIXED_RATE (firmware rate control from STA_REC_RA); protect = TXD3 PROTECT_FRAME (hardware CCMP
 // with the installed key, the frame carries FC Protected)
-void MtkWlan::txQueue(uint32_t flen, uint8_t qIdx, uint8_t ftype, uint8_t stype, uint8_t rate, bool mcast, bool status,
+void WTLWireless::txQueue(uint32_t flen, uint8_t qIdx, uint8_t ftype, uint8_t stype, uint8_t rate, bool mcast, bool status,
                       uint32_t hdrLen, uint8_t tid, bool protect) {
     uint16_t slot = txData.head;
     uint8_t *w = txData.bufs.va + slot * txData.bufSize;
@@ -119,7 +119,7 @@ void MtkWlan::txQueue(uint32_t flen, uint8_t qIdx, uint8_t ftype, uint8_t stype,
 }
 
 // Management frame (auth / assoc / deauth / block ack) at 6 Mb/s with TX status, waits until the device fetched it
-bool MtkWlan::txMgmt(const uint8_t *frame, uint32_t len, uint8_t subtype, uint8_t qIdx, uint8_t tid) {
+bool WTLWireless::txMgmt(const uint8_t *frame, uint32_t len, uint8_t subtype, uint8_t qIdx, uint8_t tid) {
     if (len > 1900 || len < 24) return false;
     if (!txSlotReady(true)) return false;                              // ring full: do not overwrite the head slot
     memcpy(txData.bufs.va + txData.head * txData.bufSize + 128, frame, len);
@@ -132,7 +132,7 @@ bool MtkWlan::txMgmt(const uint8_t *frame, uint32_t len, uint8_t subtype, uint8_
 }
 
 // mt7925_mac_tx_free: release the tokens (slot indexes) listed in a TXRX_NOTIFY packet
-void MtkWlan::txFree(const uint8_t *p, uint32_t len) {
+void WTLWireless::txFree(const uint8_t *p, uint32_t len) {
     txFreeEvents++;
     if (len < 8 || ((le32(p + 4) >> 16) & 0xf) < 4) { txFreeBadVer++; return; }
     uint32_t total = (le32(p) >> 16) & 0x3ff, count = 0;
@@ -162,7 +162,7 @@ void MtkWlan::txFree(const uint8_t *p, uint32_t len) {
 // A received frame from the association on: data to the stack once the port is open, EAPOL to the supplicant
 // queue, beacons to the BSS cache, block-ack actions to baQueue, a deauth / disassoc from the AP flags the link
 // lost. Nothing in here issues a firmware command or changes join / security state.
-void MtkWlan::rxFrame(const uint8_t *p, uint32_t len) {
+void WTLWireless::rxFrame(const uint8_t *p, uint32_t len) {
     if (!(rxCtrl & DMA_CTL_LAST_SEC0)) { rxPartial++; return; }
     if (len < 32) { rxBad++; return; }
     uint32_t rxd0 = le32(p), rxd1 = le32(p + 4), rxd2 = le32(p + 8), rxd3 = le32(p + 12);
@@ -267,7 +267,7 @@ void MtkWlan::rxFrame(const uint8_t *p, uint32_t len) {
 
 // Refuse a block-ack agreement (ADDBA response, status 37 = request declined): no A-MPDU until the
 // driver does RX reordering
-void MtkWlan::addbaDecline(const uint8_t *f, uint32_t flen) {
+void WTLWireless::addbaDecline(const uint8_t *f, uint32_t flen) {
     uint8_t r[24 + 9] = {};
     r[0] = 0xd0;                                // action
     memcpy(r + 4, tgtBssid, 6);
@@ -287,7 +287,7 @@ void MtkWlan::addbaDecline(const uint8_t *f, uint32_t flen) {
 // PKT_TYPE_TXS (mt7925_queue_rx_skb, mt7925_mac_add_txs_skb): records of 8 dwords from dword 2.
 // TXS0 rate (mode 9:6, nss 13:10, mcs 5:0), BW 31:29, ACK errors 18:16; TXS1 power 7:0; TXS2 WCID 27:16;
 // TXS5 (format 0) tx count 29:25
-void MtkWlan::txStatus(const uint8_t *p, uint32_t len) {
+void WTLWireless::txStatus(const uint8_t *p, uint32_t len) {
     for (uint32_t o = 8; o + 32 <= len; o += 32) {
         uint32_t w[8];
         for (int i = 0; i < 8; i++) w[i] = le32(p + o + 4 * i);
@@ -312,7 +312,7 @@ void MtkWlan::txStatus(const uint8_t *p, uint32_t len) {
 
 // Hand one Ethernet frame (DA, SA, ethertype + payload) to the network stack; the PN and its replay-counter
 // slot travel with the frame through the block-ack reorder buffer and are checked when it is delivered in order
-void MtkWlan::deliver(const uint8_t *da, const uint8_t *sa, const uint8_t *typeAndPayload, uint32_t n, int tid,
+void WTLWireless::deliver(const uint8_t *da, const uint8_t *sa, const uint8_t *typeAndPayload, uint32_t n, int tid,
                       uint16_t seq, int pnSlot, uint64_t pn) {
     if (!fe.rx || !ifEnabled || n < 2 || n > 1502) { rxDropped++; return; }
     mbuf_t m = fe.rx_alloc(fe.ctx, 12 + n);
@@ -329,12 +329,12 @@ void MtkWlan::deliver(const uint8_t *da, const uint8_t *sa, const uint8_t *typeA
     else inputChecked(m, pnSlot, pn);
 }
 
-void MtkWlan::inputChecked(mbuf_t m, int pnSlot, uint64_t pn) {
+void WTLWireless::inputChecked(mbuf_t m, int pnSlot, uint64_t pn) {
     if (!pnAccept(pnSlot, pn)) { mbuf_freem(m); return; }
     inputQueue(m);
 }
 
-void MtkWlan::inputQueue(mbuf_t m) {
+void WTLWireless::inputQueue(mbuf_t m) {
     if (!fe.rx) { mbuf_freem(m); return; }
     fe.rx(fe.ctx, m);
     rxQueued = true;
@@ -345,12 +345,12 @@ void MtkWlan::inputQueue(mbuf_t m) {
 
 // From the RX path: the AP deauthenticated or disassociated us. Only a flag; the tick does the teardown and the
 // manager rejoins (a firmware command from here would re-dispatch the ring slot being read).
-void MtkWlan::linkLost() {
+void WTLWireless::linkLost() {
     if (!linkUp && joinState < 3) return;
     deauthPending = true;
 }
 
-void MtkWlan::reportLink() {
+void WTLWireless::reportLink() {
     if (!fe.link) return;
     bool up = linkUp && portOpen && ifEnabled;
     if (up == linkReported) return;
@@ -358,7 +358,7 @@ void MtkWlan::reportLink() {
     fe.link(fe.ctx, up, up ? LINK_SPEED : 0);
 }
 
-void MtkWlan::keepalive(bool status) {
+void WTLWireless::keepalive(bool status) {
     if (!txSlotReady(false)) return;
     uint8_t *f = txData.bufs.va + txData.head * txData.bufSize + 128;
     bzero(f, 24);
@@ -372,7 +372,7 @@ void MtkWlan::keepalive(bool status) {
 }
 
 // Link supervisor (I-096), once a second: MtkSuper.c decides from the counters, this does what it says
-void MtkWlan::stallService() {
+void WTLWireless::stallService() {
     if (!super.stall_ms || ticks % 1000) return;
     mtk_super_in in = {};
     in.now_ms = ticks;
@@ -410,7 +410,7 @@ void MtkWlan::stallService() {
 // Chip reset, firmware reload and rejoin without detaching anything: the front end and its interface stay, the link
 // goes down and the connection manager rejoins the wanted network (native: macOS sees a link loss and its join result).
 // Runs on the gate from the tick; blocks it for the firmware download (about a second).
-int MtkWlan::reload(const char *why) {
+int WTLWireless::reload(const char *why) {
     uint64_t t0, t1;
     clock_get_uptime(&t0);
     char pm[200];
@@ -419,7 +419,7 @@ int MtkWlan::reload(const char *why) {
              rawRead(rxMcu.regs + 8), rawRead(rxMcu.regs + 12), mcuSeq & 0xf, pci->configRead16(kIOPCIConfigCommand),
              irqStatusOr);
     setProperty("MtkStallPostMortem", pm);
-    IOLog("MtkWlan: reload: %s\n", pm);
+    IOLog("WTLWireless: reload: %s\n", pm);
     fwDead = true;                              // the teardown below must not wait 3 s per firmware command
     bool scanWasRunning = scanRunning;
     joinTeardown(0);
@@ -459,12 +459,12 @@ int MtkWlan::reload(const char *why) {
     return 0;
 }
 
-void MtkWlan::timerFired(OSObject *owner, IOTimerEventSource *) {
-    MtkWlan *self = OSDynamicCast(MtkWlan, owner);
+void WTLWireless::timerFired(OSObject *owner, IOTimerEventSource *) {
+    WTLWireless *self = OSDynamicCast(WTLWireless, owner);
     if (self) self->tick();
 }
 
-void MtkWlan::tick() {
+void WTLWireless::tick() {
     timer->setTimeoutUS(TICK_US);               // first, so nothing below can stop the clock
     ticks++;
     pollRx();
@@ -531,7 +531,7 @@ void MtkWlan::tick() {
     if (ticks % 1000 == 0) publishW6();
 }
 
-void MtkWlan::publishW6() {
+void WTLWireless::publishW6() {
     setNum("MtkW6Ticks", ticks);
     setNum("MtkW6TxPackets", txPackets);
     setNum("MtkW6TxStall", txStall);
@@ -613,37 +613,37 @@ void MtkWlan::publishW6() {
 
 // Called at the end of start() once the hardware is ready: the Ethernet front end (medium, interface, link
 // down), then the timer, armed whatever the front end did, so the machines and the user client always run
-int MtkWlan::netStage() {
+int WTLWireless::netStage() {
     IOWorkLoop *wl = getWorkLoop();
     if (!wl) { step("W6 fail: no work loop"); return -1; }
-    timer = IOTimerEventSource::timerEventSource(this, &MtkWlan::timerFired);
+    timer = IOTimerEventSource::timerEventSource(this, &WTLWireless::timerFired);
     if (!timer || wl->addEventSource(timer) != kIOReturnSuccess) { step("W6 fail: timer"); return -2; }
 
     if (feNativeWanted) {
-        // 0.10.0: MtkWlanNative matches us (registerService ran in start) and registers through the ops table; the Ethernet
+        // 0.10.0: WTLWirelessNative matches us (registerService ran in start) and registers through the ops table; the Ethernet
         // front end only starts if it declines (MTK_CORE_FE_DECLINED) or has not registered within the fallback time
         feWantedAt = ticks;
-        feFallbackCall = thread_call_allocate(&MtkWlan::feFallbackThread, this);
+        feFallbackCall = thread_call_allocate(&WTLWireless::feFallbackThread, this);
         setProperty("MtkFrontEndWanted", "native");
         timer->setTimeoutUS(TICK_US);
-        step("W6 waiting for the native front end (MtkWlanNative)");
+        step("W6 waiting for the native front end (WTLWirelessNative)");
         return 0;
     }
     int fr = startFrontEnd();
     setNum("MtkW0FrontEnd", (uint32_t)fr);
     timer->setTimeoutUS(TICK_US);
-    if (fr) { step("W6 fail: Ethernet front end (MtkWlanEth) did not start; machines running without it"); return -4; }
+    if (fr) { step("W6 fail: Ethernet front end (WTLWirelessEth) did not start; machines running without it"); return -4; }
     step("W6 interface attached (link down until a network is joined)");
     return 0;
 }
 
 constexpr uint32_t FE_FALLBACK_TICKS = 15000;   // 15 s at the 1 ms tick: nothing has claimed the core
-constexpr uint32_t FE_CLAIM_TICKS = 90000;      // 90 s once MtkWlanNative claimed it (its interface start took up to 26 s)
+constexpr uint32_t FE_CLAIM_TICKS = 90000;      // 90 s once WTLWirelessNative claimed it (its interface start took up to 26 s)
 
 // Tick: while the native front end is wanted and nothing has registered, start the Ethernet one after a decline or
 // FE_FALLBACK_TICKS. The start itself runs on its own thread (IONetworkController::start and the interface attach belong
 // off the gate, as in the normal path), never from the tick.
-void MtkWlan::frontEndService() {
+void WTLWireless::frontEndService() {
     if (!feNativeWanted || feFallbackDone || fe.rx || !feFallbackCall) return;
     if (!feDeclined && ticks - feWantedAt < (feClaimed ? FE_CLAIM_TICKS : FE_FALLBACK_TICKS)) return;
     feFallbackDone = true;
@@ -653,19 +653,19 @@ void MtkWlan::frontEndService() {
     thread_call_enter(feFallbackCall);
 }
 
-void MtkWlan::feFallbackThread(void *owner, void *) {
-    MtkWlan *self = static_cast<MtkWlan *>(owner);
+void WTLWireless::feFallbackThread(void *owner, void *) {
+    WTLWireless *self = static_cast<WTLWireless *>(owner);
     int fr = self->startFrontEnd();
     self->setNum("MtkW0FrontEnd", (uint32_t)fr);
-    self->step(fr ? "W6 fail: Ethernet front end (MtkWlanEth) did not start after the native fallback"
+    self->step(fr ? "W6 fail: Ethernet front end (WTLWirelessEth) did not start after the native fallback"
                   : "W6 interface attached by the fallback (link down until a network is joined)");
 }
 
-// The front end is a child in the service plane, found by class name so the core needs no MtkWlanEth header.
+// The front end is a child in the service plane, found by class name so the core needs no WTLWirelessEth header.
 // A front end that fails start() stays attached and referenced: IONetworkController::start may already have
 // put its command gate on our work loop, so it is never freed while the core runs.
-int MtkWlan::startFrontEnd() {
-    OSObject *o = OSMetaClass::allocClassWithName("MtkWlanEth");
+int WTLWireless::startFrontEnd() {
+    OSObject *o = OSMetaClass::allocClassWithName("WTLWirelessEth");
     IOService *s = OSDynamicCast(IOService, o);
     if (!s) { OSSafeReleaseNULL(o); return -1; }
     if (!s->init() || !s->attach(this)) { s->release(); return -2; }
@@ -675,56 +675,56 @@ int MtkWlan::startFrontEnd() {
 
 // ---------------------------------------------------------------- ops table (MtkCoreApi.h)
 
-IOWorkLoop *MtkWlan::getWorkLoop() const {
+IOWorkLoop *WTLWireless::getWorkLoop() const {
     return workLoop;
 }
 
-const mtk_core_ops MtkWlan::kOps = {
-    MTK_CORE_API_V1, sizeof(mtk_core_ops), &MtkWlan::opSetCallbacks, &MtkWlan::opTx, &MtkWlan::opSetEnabled,
-    &MtkWlan::opGetMac, &MtkWlan::opGetLinkInfo,
+const mtk_core_ops WTLWireless::kOps = {
+    MTK_CORE_API_V1, sizeof(mtk_core_ops), &WTLWireless::opSetCallbacks, &WTLWireless::opTx, &WTLWireless::opSetEnabled,
+    &WTLWireless::opGetMac, &WTLWireless::opGetLinkInfo,
 };
 
-const mtk_core_ops_v2 MtkWlan::kOpsV2 = {
-    {MTK_CORE_API_V2, sizeof(mtk_core_ops_v2), &MtkWlan::opSetCallbacks, &MtkWlan::opTx, &MtkWlan::opSetEnabled,
-     &MtkWlan::opGetMac, &MtkWlan::opGetLinkInfo},
-    &MtkWlan::opScan, &MtkWlan::opResults, &MtkWlan::opJoin, &MtkWlan::opDisconnect, &MtkWlan::opStatus,
+const mtk_core_ops_v2 WTLWireless::kOpsV2 = {
+    {MTK_CORE_API_V2, sizeof(mtk_core_ops_v2), &WTLWireless::opSetCallbacks, &WTLWireless::opTx, &WTLWireless::opSetEnabled,
+     &WTLWireless::opGetMac, &WTLWireless::opGetLinkInfo},
+    &WTLWireless::opScan, &WTLWireless::opResults, &WTLWireless::opJoin, &WTLWireless::opDisconnect, &WTLWireless::opStatus,
 };
 
-const mtk_core_ops_v3 MtkWlan::kOpsV3 = {
-    {{MTK_CORE_API_V3, sizeof(mtk_core_ops_v3), &MtkWlan::opSetCallbacks, &MtkWlan::opTx, &MtkWlan::opSetEnabled,
-      &MtkWlan::opGetMac, &MtkWlan::opGetLinkInfo},
-     &MtkWlan::opScan, &MtkWlan::opResults, &MtkWlan::opJoin, &MtkWlan::opDisconnect, &MtkWlan::opStatus},
-    &MtkWlan::opSetMode, &MtkWlan::opGetBss, &MtkWlan::opGetChannels, &MtkWlan::opTxBytes,
+const mtk_core_ops_v3 WTLWireless::kOpsV3 = {
+    {{MTK_CORE_API_V3, sizeof(mtk_core_ops_v3), &WTLWireless::opSetCallbacks, &WTLWireless::opTx, &WTLWireless::opSetEnabled,
+      &WTLWireless::opGetMac, &WTLWireless::opGetLinkInfo},
+     &WTLWireless::opScan, &WTLWireless::opResults, &WTLWireless::opJoin, &WTLWireless::opDisconnect, &WTLWireless::opStatus},
+    &WTLWireless::opSetMode, &WTLWireless::opGetBss, &WTLWireless::opGetChannels, &WTLWireless::opTxBytes,
 };
 
-const mtk_core_ops_v4 MtkWlan::kOpsV4 = {
-    {{{MTK_CORE_API_V4, sizeof(mtk_core_ops_v4), &MtkWlan::opSetCallbacks, &MtkWlan::opTx, &MtkWlan::opSetEnabled,
-       &MtkWlan::opGetMac, &MtkWlan::opGetLinkInfo},
-      &MtkWlan::opScan, &MtkWlan::opResults, &MtkWlan::opJoin, &MtkWlan::opDisconnect, &MtkWlan::opStatus},
-     &MtkWlan::opSetMode, &MtkWlan::opGetBss, &MtkWlan::opGetChannels, &MtkWlan::opTxBytes},
-    &MtkWlan::opSetMac,
+const mtk_core_ops_v4 WTLWireless::kOpsV4 = {
+    {{{MTK_CORE_API_V4, sizeof(mtk_core_ops_v4), &WTLWireless::opSetCallbacks, &WTLWireless::opTx, &WTLWireless::opSetEnabled,
+       &WTLWireless::opGetMac, &WTLWireless::opGetLinkInfo},
+      &WTLWireless::opScan, &WTLWireless::opResults, &WTLWireless::opJoin, &WTLWireless::opDisconnect, &WTLWireless::opStatus},
+     &WTLWireless::opSetMode, &WTLWireless::opGetBss, &WTLWireless::opGetChannels, &WTLWireless::opTxBytes},
+    &WTLWireless::opSetMac,
 };
 
-const mtk_core_ops_v5 MtkWlan::kOpsV5 = {
-    {{{{MTK_CORE_API_V5, sizeof(mtk_core_ops_v5), &MtkWlan::opSetCallbacks, &MtkWlan::opTx, &MtkWlan::opSetEnabled,
-        &MtkWlan::opGetMac, &MtkWlan::opGetLinkInfo},
-       &MtkWlan::opScan, &MtkWlan::opResults, &MtkWlan::opJoin, &MtkWlan::opDisconnect, &MtkWlan::opStatus},
-      &MtkWlan::opSetMode, &MtkWlan::opGetBss, &MtkWlan::opGetChannels, &MtkWlan::opTxBytes},
-     &MtkWlan::opSetMac},
-    &MtkWlan::opGetRateInfo, &MtkWlan::opSetCountry,
+const mtk_core_ops_v5 WTLWireless::kOpsV5 = {
+    {{{{MTK_CORE_API_V5, sizeof(mtk_core_ops_v5), &WTLWireless::opSetCallbacks, &WTLWireless::opTx, &WTLWireless::opSetEnabled,
+        &WTLWireless::opGetMac, &WTLWireless::opGetLinkInfo},
+       &WTLWireless::opScan, &WTLWireless::opResults, &WTLWireless::opJoin, &WTLWireless::opDisconnect, &WTLWireless::opStatus},
+      &WTLWireless::opSetMode, &WTLWireless::opGetBss, &WTLWireless::opGetChannels, &WTLWireless::opTxBytes},
+     &WTLWireless::opSetMac},
+    &WTLWireless::opGetRateInfo, &WTLWireless::opSetCountry,
 };
 
-const mtk_core_ops_v6 MtkWlan::kOpsV6 = {
-    {{{{{MTK_CORE_API_V6, sizeof(mtk_core_ops_v6), &MtkWlan::opSetCallbacks, &MtkWlan::opTx, &MtkWlan::opSetEnabled,
-         &MtkWlan::opGetMac, &MtkWlan::opGetLinkInfo},
-        &MtkWlan::opScan, &MtkWlan::opResults, &MtkWlan::opJoin, &MtkWlan::opDisconnect, &MtkWlan::opStatus},
-       &MtkWlan::opSetMode, &MtkWlan::opGetBss, &MtkWlan::opGetChannels, &MtkWlan::opTxBytes},
-      &MtkWlan::opSetMac},
-     &MtkWlan::opGetRateInfo, &MtkWlan::opSetCountry},
-    &MtkWlan::opGetChipInfo, &MtkWlan::opGetChannels2, &MtkWlan::opGetLinkChan,
+const mtk_core_ops_v6 WTLWireless::kOpsV6 = {
+    {{{{{MTK_CORE_API_V6, sizeof(mtk_core_ops_v6), &WTLWireless::opSetCallbacks, &WTLWireless::opTx, &WTLWireless::opSetEnabled,
+         &WTLWireless::opGetMac, &WTLWireless::opGetLinkInfo},
+        &WTLWireless::opScan, &WTLWireless::opResults, &WTLWireless::opJoin, &WTLWireless::opDisconnect, &WTLWireless::opStatus},
+       &WTLWireless::opSetMode, &WTLWireless::opGetBss, &WTLWireless::opGetChannels, &WTLWireless::opTxBytes},
+      &WTLWireless::opSetMac},
+     &WTLWireless::opGetRateInfo, &WTLWireless::opSetCountry},
+    &WTLWireless::opGetChipInfo, &WTLWireless::opGetChannels2, &WTLWireless::opGetLinkChan,
 };
 
-IOReturn MtkWlan::callPlatformFunction(const OSSymbol *functionName, bool waitForFunction, void *param1, void *param2,
+IOReturn WTLWireless::callPlatformFunction(const OSSymbol *functionName, bool waitForFunction, void *param1, void *param2,
                                        void *param3, void *param4) {
     if (functionName && functionName->isEqualTo(MTK_CORE_OPS_V6)) {
         if (!param1 || !param2) return kIOReturnBadArgument;
@@ -767,7 +767,7 @@ IOReturn MtkWlan::callPlatformFunction(const OSSymbol *functionName, bool waitFo
         return kIOReturnSuccess;
     }
     if (functionName && functionName->isEqualTo(MTK_CORE_FE_CLAIM)) {
-        // usually before netStage: MtkWlanNative probes as soon as start() publishes the core
+        // usually before netStage: WTLWirelessNative probes as soon as start() publishes the core
         feClaimed = true;
         if (feFallbackCall) setNum("MtkFrontEndClaimMs", ticks - feWantedAt);
         else setProperty("MtkFrontEndClaimMs", "before the wait began");
@@ -777,9 +777,9 @@ IOReturn MtkWlan::callPlatformFunction(const OSSymbol *functionName, bool waitFo
 }
 
 // Register or remove the front end under the gate, so a running tick never sees half a table. A v1 table
-// (MtkWlanEth) or a v2 table (scan_done / join_result added) is accepted.
-int MtkWlan::opSetCallbacks(void *core, const mtk_fe_callbacks *cb) {
-    MtkWlan *self = static_cast<MtkWlan *>(core);
+// (WTLWirelessEth) or a v2 table (scan_done / join_result added) is accepted.
+int WTLWireless::opSetCallbacks(void *core, const mtk_fe_callbacks *cb) {
+    WTLWireless *self = static_cast<WTLWireless *>(core);
     if (cb) {
         bool v1 = cb->version == MTK_CORE_API_V1 && cb->size >= sizeof(mtk_fe_callbacks);
         bool v2 = (cb->version == MTK_CORE_API_V2 || cb->version == MTK_CORE_API_V3 || cb->version == MTK_CORE_API_V4) &&
@@ -787,11 +787,11 @@ int MtkWlan::opSetCallbacks(void *core, const mtk_fe_callbacks *cb) {
         if ((!v1 && !v2) || !cb->rx_alloc || !cb->rx || !cb->rx_flush || !cb->link || !cb->tx_space) return -1;
     }
     if (!self->workLoop) return -1;
-    return self->workLoop->runAction(&MtkWlan::gatedSetCallbacks, self, (void *)cb) == kIOReturnSuccess ? 0 : -1;
+    return self->workLoop->runAction(&WTLWireless::gatedSetCallbacks, self, (void *)cb) == kIOReturnSuccess ? 0 : -1;
 }
 
-IOReturn MtkWlan::gatedSetCallbacks(OSObject *owner, void *arg, void *, void *, void *) {
-    MtkWlan *self = static_cast<MtkWlan *>(owner);
+IOReturn WTLWireless::gatedSetCallbacks(OSObject *owner, void *arg, void *, void *, void *) {
+    WTLWireless *self = static_cast<WTLWireless *>(owner);
     const mtk_fe_callbacks *cb = static_cast<const mtk_fe_callbacks *>(arg);
     if (cb) {
         if (self->fe.rx) return kIOReturnBusy;  // one front end at a time
@@ -820,13 +820,13 @@ IOReturn MtkWlan::gatedSetCallbacks(OSObject *owner, void *arg, void *, void *, 
     return kIOReturnSuccess;
 }
 
-int MtkWlan::opTx(void *core, mbuf_t m) {
-    return static_cast<MtkWlan *>(core)->txEthernet(m);
+int WTLWireless::opTx(void *core, mbuf_t m) {
+    return static_cast<WTLWireless *>(core)->txEthernet(m);
 }
 
 // v3 (gate held by the caller)
-int MtkWlan::opSetMode(void *core, uint32_t mode, uint32_t flags) {
-    MtkWlan *self = static_cast<MtkWlan *>(core);
+int WTLWireless::opSetMode(void *core, uint32_t mode, uint32_t flags) {
+    WTLWireless *self = static_cast<WTLWireless *>(core);
     if (mode != MTK_FE_ETHERNET && mode != MTK_FE_NATIVE) return -1;
     self->feMode = mode;
     self->feModeFlags = flags;
@@ -836,23 +836,23 @@ int MtkWlan::opSetMode(void *core, uint32_t mode, uint32_t flags) {
                                                             : "ethernet");
     return 0;
 }
-int MtkWlan::opGetBss(void *core, uint32_t index, mtk_bss_info *out) { return static_cast<MtkWlan *>(core)->coreGetBss(index, out); }
-int MtkWlan::opGetChannels(void *core, uint8_t *list, uint32_t max, uint32_t *count) {
+int WTLWireless::opGetBss(void *core, uint32_t index, mtk_bss_info *out) { return static_cast<WTLWireless *>(core)->coreGetBss(index, out); }
+int WTLWireless::opGetChannels(void *core, uint8_t *list, uint32_t max, uint32_t *count) {
     if (!list || !count) return -1;
-    *count = static_cast<MtkWlan *>(core)->coreChannels(list, max);
+    *count = static_cast<WTLWireless *>(core)->coreChannels(list, max);
     return 0;
 }
-int MtkWlan::opGetChannels2(void *core, mtk_chan *list, uint32_t max, uint32_t *count) {
+int WTLWireless::opGetChannels2(void *core, mtk_chan *list, uint32_t max, uint32_t *count) {
     if (!list || !count) return -1;
-    *count = static_cast<MtkWlan *>(core)->coreChannels2(list, max);
+    *count = static_cast<WTLWireless *>(core)->coreChannels2(list, max);
     return 0;
 }
 
 static_assert((int)MTK_CAP_2G == MTK_BAND_2G && (int)MTK_CAP_5G == MTK_BAND_5G && (int)MTK_CAP_6G == MTK_BAND_6G, "band bits");
 
 // What the chip can do (its MtkChip row) next to what this driver does with it today
-int MtkWlan::opGetChipInfo(void *core, mtk_chip_info *out) {
-    MtkWlan *self = static_cast<MtkWlan *>(core);
+int WTLWireless::opGetChipInfo(void *core, mtk_chip_info *out) {
+    WTLWireless *self = static_cast<WTLWireless *>(core);
     if (!out || out->size < 8 || !self->chip) return -1;
     const MtkChip *c = self->chip;
     mtk_chip_info r;
@@ -875,8 +875,8 @@ int MtkWlan::opGetChipInfo(void *core, mtk_chip_info *out) {
     return 0;
 }
 
-int MtkWlan::opGetLinkChan(void *core, mtk_chan *out) {
-    MtkWlan *self = static_cast<MtkWlan *>(core);
+int WTLWireless::opGetLinkChan(void *core, mtk_chan *out) {
+    WTLWireless *self = static_cast<WTLWireless *>(core);
     if (!out) return -1;
     bzero(out, sizeof(*out));
     if (!self->linkUp) return -2;
@@ -888,13 +888,13 @@ int MtkWlan::opGetLinkChan(void *core, mtk_chan *out) {
     return 0;
 }
 
-int MtkWlan::opTxBytes(void *core, const uint8_t *frame, uint32_t len) {
-    return static_cast<MtkWlan *>(core)->txEthernetBytes(frame, len);
+int WTLWireless::opTxBytes(void *core, const uint8_t *frame, uint32_t len) {
+    return static_cast<WTLWireless *>(core)->txEthernetBytes(frame, len);
 }
 
 // v4 (gate held by the caller): the station address the front end was given (macOS's private address per network)
-int MtkWlan::opSetMac(void *core, const uint8_t m[6]) { return static_cast<MtkWlan *>(core)->coreSetMac(m); }
-int MtkWlan::coreSetMac(const uint8_t m[6]) {
+int WTLWireless::opSetMac(void *core, const uint8_t m[6]) { return static_cast<WTLWireless *>(core)->coreSetMac(m); }
+int WTLWireless::coreSetMac(const uint8_t m[6]) {
     if (!m || (m[0] & 1) || !(m[0] | m[1] | m[2] | m[3] | m[4] | m[5])) return -1;
     if (!memcmp(mac, m, 6)) return 0;
     if (joinState) joinTeardown(3);                 // reason 3, leaving; the manager rejoins the wanted network with the new address
@@ -917,8 +917,8 @@ int MtkWlan::coreSetMac(const uint8_t m[6]) {
     return 0;
 }
 
-void MtkWlan::opSetEnabled(void *core, int enabled) {
-    MtkWlan *self = static_cast<MtkWlan *>(core);
+void WTLWireless::opSetEnabled(void *core, int enabled) {
+    WTLWireless *self = static_cast<WTLWireless *>(core);
     self->ifEnabled = enabled != 0;
     self->reportLink();
 }
@@ -938,7 +938,7 @@ static uint32_t phyKbps(uint8_t mcs, uint8_t nss, uint8_t bw, bool sgi) {
 }
 
 // Rate of the last TX status (TXS0 rate: mode 9:6, nss 13:10, index 5:0; BW 31:29), else the negotiated maximum
-void MtkWlan::rateInfo(mtk_rate_info *out) const {
+void WTLWireless::rateInfo(mtk_rate_info *out) const {
     uint8_t bw = htActive ? chBw : 0;
     bool sgi = htActive && (bw == 2 ? (apVhtCap & 0x20) : bw == 1 ? (apHtCap & 0x40) : (apHtCap & 0x20));
     uint8_t maxMcs = 0;
@@ -990,8 +990,8 @@ void MtkWlan::rateInfo(mtk_rate_info *out) const {
     out->tx_kbps = out->max_kbps;
 }
 
-int MtkWlan::opGetRateInfo(void *core, mtk_rate_info *out) {
-    MtkWlan *self = static_cast<MtkWlan *>(core);
+int WTLWireless::opGetRateInfo(void *core, mtk_rate_info *out) {
+    WTLWireless *self = static_cast<WTLWireless *>(core);
     if (!out || out->size < 8) return -1;
     mtk_rate_info r;
     bzero(&r, sizeof(r));
@@ -1003,8 +1003,8 @@ int MtkWlan::opGetRateInfo(void *core, mtk_rate_info *out) {
     return 0;
 }
 
-int MtkWlan::opSetCountry(void *core, const char alpha2[2]) {
-    MtkWlan *self = static_cast<MtkWlan *>(core);
+int WTLWireless::opSetCountry(void *core, const char alpha2[2]) {
+    WTLWireless *self = static_cast<WTLWireless *>(core);
     if (!alpha2) return -1;
     char cc[3] = { alpha2[0], alpha2[1], 0 };
     if ((cc[0] == 'X' && cc[1] == 'Z') || (cc[0] == '0' && cc[1] == '0')) { cc[0] = '0'; cc[1] = '0'; }
@@ -1016,7 +1016,7 @@ int MtkWlan::opSetCountry(void *core, const char alpha2[2]) {
 }
 
 // A new country goes to the firmware between scans and outside a join (domainStage sends three commands)
-void MtkWlan::countryService() {
+void WTLWireless::countryService() {
     if (!countryPending || fwDead) return;
     if (joinState && !(linkUp && portOpen)) return;
     if (scanStartedAt && !scanDone) return;
@@ -1029,13 +1029,13 @@ void MtkWlan::countryService() {
     step(t);
 }
 
-int MtkWlan::opGetMac(void *core, uint8_t out[6]) {
-    memcpy(out, static_cast<MtkWlan *>(core)->mac, 6);
+int WTLWireless::opGetMac(void *core, uint8_t out[6]) {
+    memcpy(out, static_cast<WTLWireless *>(core)->mac, 6);
     return 0;
 }
 
-int MtkWlan::opGetLinkInfo(void *core, mtk_link_info *out) {
-    MtkWlan *self = static_cast<MtkWlan *>(core);
+int WTLWireless::opGetLinkInfo(void *core, mtk_link_info *out) {
+    WTLWireless *self = static_cast<WTLWireless *>(core);
     bzero(out, sizeof(*out));
     out->up = self->linkUp;
     out->enabled = self->ifEnabled;
@@ -1053,24 +1053,24 @@ int MtkWlan::opGetLinkInfo(void *core, mtk_link_info *out) {
 }
 
 // v2 (gate held by the caller: a front end on the shared work loop, or runAction)
-int MtkWlan::opScan(void *core) { return static_cast<MtkWlan *>(core)->coreScan(); }
-int MtkWlan::opResults(void *core, mtk_scan_result *out, uint32_t max, uint32_t *count) {
+int WTLWireless::opScan(void *core) { return static_cast<WTLWireless *>(core)->coreScan(); }
+int WTLWireless::opResults(void *core, mtk_scan_result *out, uint32_t max, uint32_t *count) {
     if (!out || !count) return -1;
-    *count = static_cast<MtkWlan *>(core)->coreResults(out, max);
+    *count = static_cast<WTLWireless *>(core)->coreResults(out, max);
     return 0;
 }
-int MtkWlan::opJoin(void *core, const mtk_join_params *p) { return static_cast<MtkWlan *>(core)->coreJoin(p); }
-int MtkWlan::opDisconnect(void *core) { return static_cast<MtkWlan *>(core)->coreDisconnect(); }
-int MtkWlan::opStatus(void *core, mtk_status *out) {
+int WTLWireless::opJoin(void *core, const mtk_join_params *p) { return static_cast<WTLWireless *>(core)->coreJoin(p); }
+int WTLWireless::opDisconnect(void *core) { return static_cast<WTLWireless *>(core)->coreDisconnect(); }
+int WTLWireless::opStatus(void *core, mtk_status *out) {
     if (!out) return -1;
-    static_cast<MtkWlan *>(core)->coreStatus(out);
+    static_cast<WTLWireless *>(core)->coreStatus(out);
     return 0;
 }
 
 // Ethernet -> 802.11 data: ToDS, A1 BSSID, A2 us, A3 DA, LLC/SNAP + ethertype, then the payload.
 // The 0.7.0 outputPacket; the front end frees m unless the result is MTK_TX_STALL. Nothing leaves before the
 // port is open; once the PTK is installed every frame goes out protected (hardware CCMP).
-int MtkWlan::txEthernet(mbuf_t m) {
+int WTLWireless::txEthernet(mbuf_t m) {
     uint32_t len = (uint32_t)mbuf_pkthdr_len(m);
     if (len < 14 || len > 1514) { txDrop++; return MTK_TX_DROPPED; }
     uint8_t eh[14];
@@ -1079,13 +1079,13 @@ int MtkWlan::txEthernet(mbuf_t m) {
 }
 
 // 0.10.0: the same frame as bytes (the native front end hands the Skywalk packet's buffer straight in)
-int MtkWlan::txEthernetBytes(const uint8_t *frame, uint32_t len) {
+int WTLWireless::txEthernetBytes(const uint8_t *frame, uint32_t len) {
     if (!frame || len < 14 || len > 1514) { txDrop++; return MTK_TX_DROPPED; }
     return txFrame(frame, len, nullptr, frame);
 }
 
 // eh = the 14-byte Ethernet header; the payload comes from the mbuf (m) or follows the header in bytes
-int MtkWlan::txFrame(const uint8_t *eh, uint32_t len, mbuf_t m, const uint8_t *bytes) {
+int WTLWireless::txFrame(const uint8_t *eh, uint32_t len, mbuf_t m, const uint8_t *bytes) {
     if (!linkUp || !portOpen) {
         if (linkUp && !portOpen) txPortDrop++;
         txDrop++;

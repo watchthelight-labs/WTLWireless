@@ -5,35 +5,37 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>English</string>
 	<key>CFBundleExecutable</key>
-	<string>MtkWlan</string>
+	<string>WTLWireless</string>
 	<key>CFBundleIdentifier</key>
-	<string>org.watchthelight.MtkWlan</string>
+	<string>org.watchthelight.WTLWireless</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>MtkWlan</string>
+	<string>WTLWireless</string>
 	<key>CFBundlePackageType</key>
 	<string>KEXT</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.13.0</string>
+	<string>0.14.0</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleVersion</key>
-	<string>0.13.0</string>
+	<string>0.14.0</string>
 	<key>IOKitPersonalities</key>
 	<dict>
 		<key>MT7925 PCIe</key>
 		<dict>
 			<key>CFBundleIdentifier</key>
-			<string>org.watchthelight.MtkWlan</string>
+			<string>org.watchthelight.WTLWireless</string>
 			<key>IOClass</key>
-			<string>MtkWlan</string>
+			<string>WTLWireless</string>
 			<key>IOPCIPrimaryMatch</key>
 			<string>0x792514c3 0x071714c3</string>
+			<key>IOProbeScore</key>
+			<integer>5000</integer>
 			<key>IOProviderClass</key>
 			<string>IOPCIDevice</string>
 			<key>IOUserClientClass</key>
-			<string>MtkWlanUserClient</string>
+			<string>WTLWirelessUserClient</string>
 			<key>MtkAutoNetworks</key>
 			<array/>
 			<key>MtkAutoOpenSsids</key>

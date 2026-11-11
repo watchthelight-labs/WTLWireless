@@ -1,16 +1,16 @@
-// <wtl> project: mtkwlan | file: src/MtkWlan.hpp | author: watchthelight </wtl>
-// MtkWlan: macOS driver for the MediaTek MT7925 Wi-Fi 7 PCIe card (14C3:7925) in the Legion 5 15IAX10.
+// <wtl> project: wtlwireless | file: src/core/WTLWireless.hpp | author: watchthelight </wtl>
+// WTLWireless: macOS driver for the MediaTek MT7925 Wi-Fi 7 PCIe card (14C3:7925) in the Legion 5 15IAX10.
 // W1: PCI attach, BAR0 map, ownership handshake, chip ID. W2: WFDMA rings + MSI. W3: firmware download.
 // W4: NIC capability (MAC), station interface, US channel domain, firmware scan.
 // W5: open-system auth + association.
 // W6: Ethernet front-end (en1): 802.11 data TX/RX, TX-free tokens, keepalive, rejoin (MtkNet.cpp).
 // W8: HT/VHT association (WMM, HT/VHT caps, 20/40/80 MHz), firmware rate control.
 // W9: block ack both ways: RX reorder (mt76 agg-rx.c port), TX ADDBA + firmware A-MPDU (MtkBa.cpp).
-// 0.8.0 (W0): MtkWlan is now the core (IOService on the PCI device). The Ethernet front end is the child
-// MtkWlanEth (MtkWlanEth.cpp), which reaches the core only through the C ops table in MtkCoreApi.h.
+// 0.8.0 (W0): WTLWireless is now the core (IOService on the PCI device). The Ethernet front end is the child
+// WTLWirelessEth (WTLWirelessEth.cpp), which reaches the core only through the C ops table in MtkCoreApi.h.
 // 0.9.0 (W1/W2): scan and join are state machines driven from the tick, with a BSS cache (MtkScan.cpp,
 // MtkJoin.cpp); a connection manager picks the network (the one asked for through the ops table v2 or the
-// IOUserClient MtkWlanUserClient, else an allow-listed open one). WPA2-PSK (CCMP) runs in the core: MtkSupp.c (4-way
+// IOUserClient WTLWirelessUserClient, else an allow-listed open one). WPA2-PSK (CCMP) runs in the core: MtkSupp.c (4-way
 // and group handshake), MtkCrypto.c, and MtkSec.cpp (EAPOL in and out, key install from the tick, port control).
 // Recovery keeps only 128 KB of kernel log, so every step publishes its result as a registry
 // property (Mtk*), which recon.sh / wifi.sh capture with ioreg.
@@ -71,8 +71,8 @@ struct MtkBss {
     uint8_t ie[512];                           // information elements after the fixed fields (same cap as tgtIe)
 };
 
-class MtkWlan : public IOService {
-    OSDeclareDefaultStructors(MtkWlan)
+class WTLWireless : public IOService {
+    OSDeclareDefaultStructors(WTLWireless)
 
 public:
     bool start(IOService *provider) override;
@@ -408,10 +408,10 @@ private:
     mtk_super super = {};
     uint32_t stallReloadFails = 0, stallLastReloadMs = 0;
     bool stallFreezeRx = false;                // debug (kMtkUcStallTest): ignore the Rx ring so the supervisor trips
-    IOService *frontEnd = nullptr;             // MtkWlanEth child, created by startFrontEnd()
+    IOService *frontEnd = nullptr;             // WTLWirelessEth child, created by startFrontEnd()
     mtk_fe_callbacks fe = {};                  // all null while no front end is registered
     // 0.10.0: front-end selection (MtkFrontEnd / boot-arg mtkfe). With "native" the core publishes itself and waits for
-    // MtkWlanNative to register; if it declines or stays away, the Ethernet front end starts (frontEndService)
+    // WTLWirelessNative to register; if it declines or stays away, the Ethernet front end starts (frontEndService)
     bool feNativeWanted = false, feDeclined = false, feFallbackDone = false, feClaimed = false;   // feClaimed: MTK_CORE_FE_CLAIM seen
     uint32_t feWantedAt = 0, feMode = MTK_FE_ETHERNET, feModeFlags = 0;
     thread_call_t feFallbackCall = nullptr;

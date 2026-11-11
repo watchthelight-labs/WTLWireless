@@ -1,21 +1,21 @@
-// <wtl> project: mtkwlan | file: src/MtkWlan.cpp | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/WTLWireless.cpp | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC
 // W1 bring-up, following mt7925_pci_probe() in Linux mt76 v6.18 (mt7925/pci.c) and the
 // ownership handshakes in mt792x_core.c (Copyright (C) 2023 MediaTek Inc., ISC):
 //   memory + bus master on, BAR0 mapped, fw_own then drv_own, read chip ID and revision.
 // Then W2/W3 (MtkFw.cpp): WFSYS reset, WFDMA rings, MSI, patch + RAM firmware download.
-// 0.8.0 (W0): the core is a plain IOService with its own work loop; the Ethernet front end (MtkWlanEth)
+// 0.8.0 (W0): the core is a plain IOService with its own work loop; the Ethernet front end (WTLWirelessEth)
 // is created as a child in netStage() and shares that work loop.
 // 0.9.0 (W1): no hard-coded SSID. After the firmware runs, hwInit() readies the station and netStage() starts
 // the front end (link down) and the tick; the connection manager scans and joins from there. MtkAutoOpenSsids
 // (Info.plist) lists the open networks it may join on its own; everything else comes through the user client.
 
-#include "MtkWlan.hpp"
+#include "WTLWireless.hpp"
 #include "MtkCrypto.h"
 #include <pexpert/pexpert.h>
 #include <IOKit/IOMessage.h>
 
-OSDefineMetaClassAndStructors(MtkWlan, IOService)
+OSDefineMetaClassAndStructors(WTLWireless, IOService)
 
 namespace {
 // mt792x_regs.h / mt7925/regs.h
@@ -29,17 +29,17 @@ constexpr uint32_t MT_HW_REV                = 0x70010204;
 constexpr int      MT792x_DRV_OWN_RETRY_COUNT = 10;
 } // namespace
 
-void MtkWlan::step(const char *state) {
+void WTLWireless::step(const char *state) {
     setProperty("MtkState", state);
-    IOLog("MtkWlan: %s\n", state);
+    IOLog("WTLWireless: %s\n", state);
 }
 
-void MtkWlan::setNum(const char *key, uint64_t val, unsigned bits) {
+void WTLWireless::setNum(const char *key, uint64_t val, unsigned bits) {
     setProperty(key, val, bits);
 }
 
 // mt792xe_mcu_fw_pmctrl: hand the chip to the firmware (SET_OWN, wait for OWN_SYNC = 1)
-int MtkWlan::fwOwn() {
+int WTLWireless::fwOwn() {
     for (int i = 0; i < MT792x_DRV_OWN_RETRY_COUNT; i++) {
         wr(MT_CONN_ON_LPCTL, PCIE_LPCR_HOST_SET_OWN);
         if (pollMsec(MT_CONN_ON_LPCTL, PCIE_LPCR_HOST_OWN_SYNC, PCIE_LPCR_HOST_OWN_SYNC, 50, 1))
@@ -49,7 +49,7 @@ int MtkWlan::fwOwn() {
 }
 
 // __mt792xe_mcu_drv_pmctrl: take the chip back for the driver (CLR_OWN, wait for OWN_SYNC = 0)
-int MtkWlan::drvOwn() {
+int WTLWireless::drvOwn() {
     for (int i = 0; i < MT792x_DRV_OWN_RETRY_COUNT; i++) {
         wr(MT_CONN_ON_LPCTL, PCIE_LPCR_HOST_CLR_OWN);
         if (pollMsec(MT_CONN_ON_LPCTL, PCIE_LPCR_HOST_OWN_SYNC, 0, 50, 1))
@@ -59,7 +59,7 @@ int MtkWlan::drvOwn() {
 }
 
 // Which interrupt sources IOPCIFamily offers for the card (MSI is what W2 needs)
-void MtkWlan::listInterrupts() {
+void WTLWireless::listInterrupts() {
     char buf[96];
     int len = 0;
     buf[0] = 0;
@@ -76,7 +76,21 @@ void MtkWlan::listInterrupts() {
     setProperty("MtkInterrupts", buf[0] ? buf : "none");
 }
 
-bool MtkWlan::start(IOService *provider) {
+// The older kext set (MtkWlan.kext) drives the same card. Two drivers on one card is never right, so this one leaves.
+static bool olderSetLoaded() {
+    const OSSymbol *name = OSSymbol::withCString("MtkWlan");
+    bool yes = name && OSMetaClass::getMetaClassWithName(name) != nullptr;
+    if (name) name->release();
+    return yes;
+}
+
+bool WTLWireless::start(IOService *provider) {
+    if (olderSetLoaded()) {
+        provider->setProperty("MtkConflict", "MtkWlan.kext is loaded too and keeps the card: take MtkWlan.kext and "
+                                             "MtkWlanNative.kext out of the OpenCore config to use WTLWireless");
+        IOLog("WTLWireless: MtkWlan.kext is loaded too, leaving the card to it (remove the old kexts from the config)\n");
+        return false;
+    }
     if (!IOService::start(provider))
         return false;
     // 0.7.0 got its work loop from IONetworkController::start (createWorkLoop); the core makes its own
@@ -128,7 +142,7 @@ bool MtkWlan::start(IOService *provider) {
     if (stallSec > 600) stallSec = 600;
     mtk_super_init(&super, stallSec * 1000);
     setNum("MtkStallSec", stallSec);
-    // 0.10.0: which front end owns the data path. MtkFrontEnd "native" waits for MtkWlanNative.kext (falls back to the
+    // 0.10.0: which front end owns the data path. MtkFrontEnd "native" waits for WTLWirelessNative.kext (falls back to the
     // Ethernet front end if it declines or stays away); boot-arg mtkfe=native|ethernet overrides the plist
     if (OSString *feStr = OSDynamicCast(OSString, getProperty("MtkFrontEnd"))) feNativeWanted = feStr->isEqualTo("native");
     char feArg[16] = {};
@@ -234,17 +248,17 @@ bool MtkWlan::start(IOService *provider) {
 }
 
 // Sleep is off on this machine; system sleep and wake only need an acknowledgement
-IOReturn MtkWlan::setPowerState(unsigned long state, IOService *device) {
+IOReturn WTLWireless::setPowerState(unsigned long state, IOService *device) {
     return kIOPMAckImplied;
 }
 
 // On the gate, so no tick or front-end call touches the chip while it is being reset
-void MtkWlan::systemWillShutdown(IOOptionBits specifier) {
+void WTLWireless::systemWillShutdown(IOOptionBits specifier) {
     if (specifier == kIOMessageSystemWillPowerOff || specifier == kIOMessageSystemWillRestart) {
         const char *why = specifier == kIOMessageSystemWillRestart ? "restart" : "power off";
         if (workLoop)
             workLoop->runAction([](OSObject *o, void *w, void *, void *, void *) -> IOReturn {
-                static_cast<MtkWlan *>(o)->quiesce((const char *)w);
+                static_cast<WTLWireless *>(o)->quiesce((const char *)w);
                 return kIOReturnSuccess;
             }, this, (void *)why);
         else
@@ -253,7 +267,7 @@ void MtkWlan::systemWillShutdown(IOOptionBits specifier) {
     IOService::systemWillShutdown(specifier);
 }
 
-void MtkWlan::stop(IOService *provider) {
+void WTLWireless::stop(IOService *provider) {
     if (pmJoined) {
         PMstop();
         pmJoined = false;
@@ -283,7 +297,7 @@ void MtkWlan::stop(IOService *provider) {
     IOService::stop(provider);
 }
 
-void MtkWlan::free() {
+void WTLWireless::free() {
     if (feFallbackCall) {
         thread_call_cancel(feFallbackCall);
         thread_call_free(feFallbackCall);

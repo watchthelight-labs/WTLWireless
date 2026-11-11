@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: src/MtkSuper.h | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkSuper.h | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC
 // Link supervisor (I-096): decides once a second, from counters only, whether a link that stays associated still
 // works. Plain C with no kernel calls so tests/mtk_super_test.c runs it on the host. The idea of a supervisor that

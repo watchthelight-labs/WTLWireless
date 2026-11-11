@@ -1,8 +1,8 @@
-// <wtl> project: mtkwlan | file: src/MtkCrypto.h | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkCrypto.h | author: watchthelight </wtl>
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 // WPA2-PSK primitives with no OS dependencies: SHA-1, HMAC-SHA1, PBKDF2-HMAC-SHA1, the IEEE 802.11 PRF,
 // AES-128 and RFC 3394 key wrap / unwrap, constant-time compare. Plain C, built three ways: in the kext
-// (build-mac.sh, kernel flags), in the host test (tests/run.sh) and in the userspace tool (tools/mtkwifi).
+// (build.sh, kernel flags), in the host test (tests/run.sh) and in the userspace tool (tools/mtkwifi).
 //
 // Adapted from itl_wpa.h / itl_wpa.cpp of itlmt7925 (github.com/thanhnndev/ga403wm-hackintosh,
 // kexts/itlmt7925, commit 8f0ff67), audited before use.

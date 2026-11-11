@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: src/MtkCrypto.c | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkCrypto.c | author: watchthelight </wtl>
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 // See MtkCrypto.h. Adapted from itl_wpa.cpp of itlmt7925 (github.com/thanhnndev/ga403wm-hackintosh, commit 8f0ff67),
 // Copyright (c) 2026 thanhnndev and contributors, The Clear BSD License (full notice in MtkCrypto.h).

@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: src/MtkChip.cpp | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkChip.cpp | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC
 // The chip table. MT7925 values are ported from Linux mt76 v6.18 (mt7925/pci.c fixed_map, mt792x_dma.c prefetch,
 // mt7925/regs.h and mt792x_regs.h interrupt bits, mt7925/init.c capabilities):

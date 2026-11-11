@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: src/MtkSupp.h | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkSupp.h | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC AND BSD-3-Clause-Clear
 // WPA2-PSK (RSN, AKM 00-0F-AC:2, CCMP, EAPOL-Key descriptor version 2) supplicant state machine: the 4-way
 // handshake and the group key handshake, with no OS calls. The kext glue (MtkSec.cpp) feeds it received

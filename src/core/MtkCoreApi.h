@@ -1,20 +1,20 @@
-// <wtl> project: mtkwlan | file: src/MtkCoreApi.h | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkCoreApi.h | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC
-// The C interface between the MtkWlan core (IOService on the MT7925 PCI device) and a front end
-// (MtkWlanEth here; later MtkWlanNative, a separate kext). Plain C on purpose: a front end in another
-// kext gets this table through callPlatformFunction and needs no C++ library link to MtkWlan.
+// The C interface between the WTLWireless core (IOService on the MT7925 PCI device) and a front end
+// (WTLWirelessEth here; later WTLWirelessNative, a separate kext). Plain C on purpose: a front end in another
+// kext gets this table through callPlatformFunction and needs no C++ library link to WTLWireless.
 //
 //   const struct mtk_core_ops *ops; void *core;
 //   core_provider->callPlatformFunction(MTK_CORE_OPS_V1, false, &ops, &core, NULL, NULL);
 //   then check ops->version == MTK_CORE_API_V1 and ops->size >= the size you were built with.
 // Version 2 (0.9.0, W1) is a superset: MTK_CORE_OPS_V2 returns a struct mtk_core_ops_v2 whose first member is
 // the v1 table (with version 2 in it), plus scan / results / join / disconnect / status, and accepts
-// struct mtk_fe_callbacks_v2 (v1 callbacks + scan_done + join_result). A v1 front end (MtkWlanEth) keeps
+// struct mtk_fe_callbacks_v2 (v1 callbacks + scan_done + join_result). A v1 front end (WTLWirelessEth) keeps
 // asking for MTK_CORE_OPS_V1 and gets exactly the v1 table it was built for.
 //
 // Threading (W0): the core runs one IOWorkLoop (its getWorkLoop()). The 1 ms tick, RX, block ack and
 // rejoin all run on it, so every callback below is called with that work loop's gate held. A front end
-// must make its own TX and enable/disable paths run on the same gate (MtkWlanEth returns the core's
+// must make its own TX and enable/disable paths run on the same gate (WTLWirelessEth returns the core's
 // loop from getWorkLoop(), so IOGatedOutputQueue and the IONetworkController command gate share it).
 // Callbacks must not sleep and must not call back into tx or set_enabled.
 
@@ -33,7 +33,7 @@ extern "C" {
 #define MTK_CORE_OPS_V2      "mtk-core-ops-v2"
 #define MTK_CORE_API_V1      1
 #define MTK_CORE_API_V2      2
-#define MTK_CORE_API_VERSION MTK_CORE_API_V1   // what a v1 front end (MtkWlanEth) is built against
+#define MTK_CORE_API_VERSION MTK_CORE_API_V1   // what a v1 front end (WTLWirelessEth) is built against
 
 // tx results: on OK and DROPPED the caller frees the mbuf; on STALL it keeps it and retries after tx_space
 enum { MTK_TX_OK = 0, MTK_TX_DROPPED = 1, MTK_TX_STALL = 2 };
@@ -107,7 +107,7 @@ struct mtk_core_ops_v2 {
     int (*get_status)(void *core, struct mtk_status *out);
 };
 
-// ---- version 3 (0.10.0): what the native IO80211 front end (MtkWlanNative.kext) needs beyond v2 ----------------------
+// ---- version 3 (0.10.0): what the native IO80211 front end (WTLWirelessNative.kext) needs beyond v2 ----------------------
 // MTK_CORE_OPS_V3 returns a struct mtk_core_ops_v3 whose first member is the v2 table (version 3 in it) and accepts
 // struct mtk_fe_callbacks_v2 with version MTK_CORE_API_V3 (same callbacks: RX stays mbuf based because the block-ack
 // reorder buffer holds mbufs). v1 and v2 front ends are unaffected.

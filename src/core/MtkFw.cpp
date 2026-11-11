@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: src/MtkFw.cpp | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkFw.cpp | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC
 // W2 (WFDMA rings, interrupts) and W3 (patch + RAM firmware download, N9 ready).
 // Ported from Linux mt76 v6.18 (Copyright (C) 2023 MediaTek Inc., ISC):
@@ -7,7 +7,7 @@
 //   mt7925/mcu.c fill_message/parse_response, mt76_connac_mcu.c load_patch/load_ram helpers.
 // Responses are taken by polling the RX MCU ring (no tasklet); the MSI handler only counts and acks.
 
-#include "MtkWlan.hpp"
+#include "WTLWireless.hpp"
 
 namespace {
 // --- registers (BAR offsets below 0x200000 are used as is, chip addresses go through the remap)
@@ -73,7 +73,7 @@ inline uint32_t le32(const uint8_t *p) { return (uint32_t)p[3] << 24 | (uint32_t
 
 // ---------------------------------------------------------------- rings
 
-int MtkWlan::ringAlloc(MtkRing &r, bool rx, uint16_t idx, uint16_t n, uint32_t bufSize) {
+int WTLWireless::ringAlloc(MtkRing &r, bool rx, uint16_t idx, uint16_t n, uint32_t bufSize) {
     r.rx = rx;
     r.n = n;
     r.bufSize = bufSize;
@@ -87,7 +87,7 @@ int MtkWlan::ringAlloc(MtkRing &r, bool rx, uint16_t idx, uint16_t n, uint32_t b
 }
 
 // mt76_dma_queue_reset: every descriptor DMA_DONE (free), indexes to 0, base and size; also after a chip reset
-void MtkWlan::ringReset(MtkRing &r) {
+void WTLWireless::ringReset(MtkRing &r) {
     for (uint16_t i = 0; i < r.n; i++)
         desc(r, i)[1] = DMA_CTL_DMA_DONE;
     r.desc.toDevice();
@@ -104,7 +104,7 @@ void MtkWlan::ringReset(MtkRing &r) {
     }
 }
 
-void MtkWlan::rxArm(MtkRing &r) {
+void WTLWireless::rxArm(MtkRing &r) {
     volatile uint32_t *d = desc(r, r.head);
     d[0] = r.bufs.iova + r.head * r.bufSize;
     d[2] = 0;
@@ -114,7 +114,7 @@ void MtkWlan::rxArm(MtkRing &r) {
 }
 
 // Queue one buffer on a TX ring and wait until the device has fetched it (dma_idx caught up)
-int MtkWlan::txSend(MtkRing &r, const void *data, uint32_t len) {
+int WTLWireless::txSend(MtkRing &r, const void *data, uint32_t len) {
     if (len > r.bufSize) return -1;
     uint16_t i = r.head;
     memcpy(r.bufs.va + i * r.bufSize, data, len);
@@ -135,7 +135,7 @@ int MtkWlan::txSend(MtkRing &r, const void *data, uint32_t len) {
 }
 
 // Next completed RX buffer (mt76_dma_dequeue), or nullptr. Caller must call rxRelease after use.
-const uint8_t *MtkWlan::rxPoll(MtkRing &r, uint32_t *len) {
+const uint8_t *WTLWireless::rxPoll(MtkRing &r, uint32_t *len) {
     r.desc.fromDevice();
     volatile uint32_t *d = desc(r, r.tail);
     uint32_t ctrl = d[1];
@@ -146,7 +146,7 @@ const uint8_t *MtkWlan::rxPoll(MtkRing &r, uint32_t *len) {
     return r.bufs.va + r.tail * r.bufSize;
 }
 
-void MtkWlan::rxRelease(MtkRing &r) {
+void WTLWireless::rxRelease(MtkRing &r) {
     desc(r, r.tail)[1] = 0;
     r.tail = (r.tail + 1) % r.n;
     rxArm(r);
@@ -155,8 +155,8 @@ void MtkWlan::rxRelease(MtkRing &r) {
 
 // ---------------------------------------------------------------- interrupts
 
-void MtkWlan::interruptHandler(OSObject *owner, void *, IOService *, int) {
-    MtkWlan *self = OSDynamicCast(MtkWlan, owner);
+void WTLWireless::interruptHandler(OSObject *owner, void *, IOService *, int) {
+    WTLWireless *self = OSDynamicCast(WTLWireless, owner);
     if (!self) return;
     self->irqCount++;
     // mt792x_irq_handler / tasklet: read and acknowledge (write 1 to clear) the host status
@@ -166,7 +166,7 @@ void MtkWlan::interruptHandler(OSObject *owner, void *, IOService *, int) {
     self->rawWrite(WFDMA0_HOST_INT_STA, sta);
 }
 
-void MtkWlan::setupInterrupt() {
+void WTLWireless::setupInterrupt() {
     int msi = -1;
     for (int i = 0; i < 8; i++) {
         int type = 0;
@@ -175,7 +175,7 @@ void MtkWlan::setupInterrupt() {
     }
     setNum("MtkW2MsiIndex", (uint32_t)msi);
     if (msi < 0) return;
-    IOReturn r = pci->registerInterrupt(msi, this, &MtkWlan::interruptHandler, nullptr);
+    IOReturn r = pci->registerInterrupt(msi, this, &WTLWireless::interruptHandler, nullptr);
     setNum("MtkW2IrqRegister", (uint32_t)r);
     if (r == kIOReturnSuccess) {
         pci->enableInterrupt(msi);
@@ -185,7 +185,7 @@ void MtkWlan::setupInterrupt() {
 
 // ---------------------------------------------------------------- MCU messages
 
-uint8_t MtkWlan::nextSeq() {
+uint8_t WTLWireless::nextSeq() {
     uint8_t seq = ++mcuSeq & 0xf;
     if (!seq) seq = ++mcuSeq & 0xf;
     return seq;
@@ -194,7 +194,7 @@ uint8_t MtkWlan::nextSeq() {
 // mt7925_mcu_fill_message for a legacy (non-UNI) command, sent on TX ring 15, then the reply
 // matched by sequence number on RX ring 0 (mt7925_mcu_parse_response). Returns the status byte
 // for PATCH_SEM_CONTROL / PATCH_FINISH_REQ, 0 for others, negative on failure.
-int MtkWlan::mcuCmd(uint8_t cid, const void *payload, uint32_t plen) {
+int WTLWireless::mcuCmd(uint8_t cid, const void *payload, uint32_t plen) {
     uint8_t msg[MCU_TXD_LEN + 64] = {};
     if (plen > 64) return -10;
     uint8_t seq = nextSeq();
@@ -216,7 +216,7 @@ int MtkWlan::mcuCmd(uint8_t cid, const void *payload, uint32_t plen) {
     return mcuWait(cid, seq);
 }
 
-int MtkWlan::mcuWait(uint8_t cid, uint8_t seq) {
+int WTLWireless::mcuWait(uint8_t cid, uint8_t seq) {
     for (int t = 0; t < 3000; t++) {       // mdev->mcu.timeout = 3 * HZ
         uint32_t len = 0;
         const uint8_t *p = rxPoll(rxMcu, &len);
@@ -234,7 +234,7 @@ int MtkWlan::mcuWait(uint8_t cid, uint8_t seq) {
 }
 
 // FW_SCATTER: raw data, no header, TX ring 16, chunks of 4096; uses a sequence number but no reply
-int MtkWlan::sendScatter(const uint8_t *data, uint32_t len) {
+int WTLWireless::sendScatter(const uint8_t *data, uint32_t len) {
     while (len) {
         uint32_t cur = len < FW_CHUNK ? len : FW_CHUNK;
         (void)nextSeq();
@@ -246,7 +246,7 @@ int MtkWlan::sendScatter(const uint8_t *data, uint32_t len) {
     return 0;
 }
 
-int MtkWlan::initDownload(uint32_t addr, uint32_t len, uint32_t mode) {
+int WTLWireless::initDownload(uint32_t addr, uint32_t len, uint32_t mode) {
     uint8_t req[12];
     OSWriteLittleInt32(req, 0, addr);
     OSWriteLittleInt32(req, 4, len);
@@ -256,14 +256,14 @@ int MtkWlan::initDownload(uint32_t addr, uint32_t len, uint32_t mode) {
     return mcuCmd(cid, req, sizeof(req));
 }
 
-int MtkWlan::patchSem(bool get) {
+int WTLWireless::patchSem(bool get) {
     uint8_t req[4];
     OSWriteLittleInt32(req, 0, get ? PATCH_SEM_GET : PATCH_SEM_RELEASE);
     return mcuCmd(CMD_PATCH_SEM_CONTROL, req, sizeof(req));
 }
 
 // mt76_connac2_load_patch
-int MtkWlan::loadPatch() {
+int WTLWireless::loadPatch() {
     const uint8_t *fw = chip->patch.data;
     int sem = patchSem(true);
     setNum("MtkW3PatchSemGet", (uint32_t)sem);
@@ -302,7 +302,7 @@ int MtkWlan::loadPatch() {
 }
 
 // mt76_connac2_load_ram + mt76_connac_mcu_send_ram_firmware (WM only, no WA on mt7925)
-int MtkWlan::loadRam() {
+int WTLWireless::loadRam() {
     const uint8_t *fw = chip->ram.data;
     const uint32_t fwLen = *chip->ram.len;
     const uint32_t trailerLen = 36, regionLen = 40;   // sizeof fw_trailer / fw_region (checked against the blob)
@@ -344,7 +344,7 @@ int MtkWlan::loadRam() {
 
 // W2 + W3 on a chip we own: WFSYS reset, WFDMA rings (allocated once, reset on later calls), firmware, N9 ready.
 // Runs at attach and again from the attach recovery and the link supervisor (reload).
-int MtkWlan::hwStart() {
+int WTLWireless::hwStart() {
     // rest of mt7925_pci_probe after drv_own
     rmw(HW_EMI_CTL, 1u << 1, 1u << 1);                         // SLPPROT_EN
 
@@ -435,7 +435,7 @@ int MtkWlan::hwStart() {
     return 0;
 }
 
-int MtkWlan::bringUp() {
+int WTLWireless::bringUp() {
     int rc = hwStart();
     // I-081: a warm restart can leave the chip running the old firmware with its DMA pointing at freed memory, and the
     // patch download then fails. One more WFSYS reset and a second try, then a function level reset and a third.
@@ -443,7 +443,7 @@ int MtkWlan::bringUp() {
         attachRecover++;
         setNum("MtkAttachRecover", attachRecover);
         setNum("MtkAttachFirstResult", (uint32_t)rc);
-        IOLog("MtkWlan: attach failed (%d), WFSYS reset and retry\n", rc);
+        IOLog("WTLWireless: attach failed (%d), WFSYS reset and retry\n", rc);
         fwOwn();
         drvOwn();
         rc = hwStart();
@@ -468,7 +468,7 @@ int MtkWlan::bringUp() {
 
 // PCIe function level reset, the last resort when WFSYS reset did not bring the chip back. Config space (BARs, MSI)
 // is saved and restored around it by IOPCIFamily, as for sleep. false when the card does not offer FLR.
-bool MtkWlan::pciFlr() {
+bool WTLWireless::pciFlr() {
     uint8_t cap = 0;
     if (!pci->findPCICapability(kIOPCIPCIExpressCapability, &cap) || !cap) { flrUnsupported++; return false; }
     if (!(pci->configRead32(cap + 4) & (1u << 28))) {            // Device Capabilities: Function Level Reset
@@ -486,14 +486,14 @@ bool MtkWlan::pciFlr() {
     if (irqIndex >= 0) pci->enableInterrupt(irqIndex);
     attachFlr++;
     setNum("MtkFlr", attachFlr);
-    IOLog("MtkWlan: PCIe function level reset done\n");
+    IOLog("WTLWireless: PCIe function level reset done\n");
     return true;
 }
 
 // mt7925_pci_shutdown -> mt7925e_unregister_device: driver own, DMA off, WFSYS reset. Without it a warm restart
 // leaves the firmware running and the DMA rings pointing at freed host memory; the next boot's patch download fails
 // (N-177, "W3 fail: patch download") and the card can drop off the bus until a cold power-off (I-081)
-void MtkWlan::quiesce(const char *why) {
+void WTLWireless::quiesce(const char *why) {
     if (quiesced || !pci || !mmio) return;
     quiesced = true;
     if (timer) timer->cancelTimeout();
@@ -508,5 +508,5 @@ void MtkWlan::quiesce(const char *why) {
     rmw(chip->wfsysRst, 1u << 0, 1u << 0);
     bool rst = pollMsec(chip->wfsysRst, 1u << 4, 1u << 4, 500, 10);
     pci->setBusMasterEnable(false);                               // no DMA into host memory past this point
-    IOLog("MtkWlan: quiesced for %s (drv_own %d, dma idle %d, wfsys reset %d)\n", why, drv, idle, rst);
+    IOLog("WTLWireless: quiesced for %s (drv_own %d, dma idle %d, wfsys reset %d)\n", why, drv, idle, rst);
 }

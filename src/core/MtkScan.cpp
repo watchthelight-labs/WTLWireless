@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: src/MtkScan.cpp | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkScan.cpp | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC AND BSD-3-Clause-Clear
 // W4: firmware commands after the firmware runs (hwInit), then firmware scans, listed as Mtk* properties.
 // Command layouts are ported from Linux mt76 v6.18 (Copyright (C) 2023 MediaTek Inc., ISC):
@@ -15,7 +15,7 @@
 // (scanStart / scanService) that fills a BSS cache (bssNote) with each network's security from its RSN or WPA
 // element (mtk_rsn_parse in MtkSupp.c). The connection manager in MtkJoin.cpp picks from that cache.
 
-#include "MtkWlan.hpp"
+#include "WTLWireless.hpp"
 
 namespace {
 constexpr uint32_t MCU_UNI_TXD_LEN = 48;   // struct mt76_connac2_mcu_uni_txd
@@ -84,7 +84,7 @@ inline bool isBeaconAt(const uint8_t *p, uint32_t len, uint32_t o) {
 // while waiting, so it must never run from inside dispatchRx (the slot being dispatched would be dispatched
 // again): that case returns -13 and is counted. After UNICMD_DEAD_AFTER timeouts in a row the firmware counts
 // as dead and every later command returns -14 at once, so the tick does not sleep 3 s per command forever.
-int MtkWlan::uniCmd(uint8_t cid, const void *payload, uint32_t plen, bool query, uint8_t *ev, uint32_t evMax, uint32_t *evLen) {
+int WTLWireless::uniCmd(uint8_t cid, const void *payload, uint32_t plen, bool query, uint8_t *ev, uint32_t evMax, uint32_t *evLen) {
     static uint8_t msg[2048];
     if (evLen) *evLen = 0;
     if (inDispatch) { uniCmdInDispatch++; return -13; }
@@ -134,7 +134,7 @@ int MtkWlan::uniCmd(uint8_t cid, const void *payload, uint32_t plen, bool query,
 }
 
 // Count an MCU event by id and keep hex of the first few (diagnostics)
-void MtkWlan::noteEvent(const uint8_t *p, uint32_t len) {
+void WTLWireless::noteEvent(const uint8_t *p, uint32_t len) {
     rxEvents++;
     if (len < 44) { evShort++; return; }
     evCount[p[36]]++;
@@ -154,7 +154,7 @@ void MtkWlan::noteEvent(const uint8_t *p, uint32_t len) {
 }
 
 // mt792x_mac_init_band (mt792x_mac.c), called for band 0 and 1
-void MtkWlan::macInitBand(int b) {
+void WTLWireless::macInitBand(int b) {
     rmw(tmacCtcr0(b), 0x3f, 0x3f);                                 // INS_DDLMT_REFTIME
     rmw(tmacCtcr0(b), (1u << 18) | (1u << 17), (1u << 18) | (1u << 17));
     rmw(rmacBase(b) + 0x3c4, 1u << 30, 1u << 30);                  // RMAC_MIB_TIME0 RXTIME_EN
@@ -168,7 +168,7 @@ void MtkWlan::macInitBand(int b) {
 // One RX packet from either ring (mt7925_queue_rx_skb classification). Frames go to the data path from the
 // association on (joinState 3 = association request sent), so a message 1 or a deauthentication arriving while
 // the post-association commands run is not lost; before that only the beacon locator sees them.
-void MtkWlan::dispatchRx(const uint8_t *p, uint32_t len) {
+void WTLWireless::dispatchRx(const uint8_t *p, uint32_t len) {
     if (len >= 4) rxTypes[le32(p) >> 27]++;
     bool was = inDispatch;
     inDispatch = true;
@@ -196,7 +196,7 @@ void MtkWlan::dispatchRx(const uint8_t *p, uint32_t len) {
 }
 
 // Drain the band0 data ring (scan results arrive there as beacons / probe responses)
-void MtkWlan::pollRx() {
+void WTLWireless::pollRx() {
     if (stallFreezeRx) return;                  // supervisor test: the data ring goes unread until the reload
     for (int guard = 0; guard < 256; guard++) {
         uint32_t len = 0;
@@ -209,7 +209,7 @@ void MtkWlan::pollRx() {
 
 // Where the 802.11 frame starts in an RX buffer (mt7925_mac_fill_rx): RXD 32 bytes, then groups 4, 1, 2, 3
 // (16 bytes each), group 5 (96 bytes, only with group 3), then the 2-byte header pad units of RXD2 HDR_OFFSET
-uint32_t MtkWlan::rxFrameOffset(uint32_t rxd1, uint32_t rxd2) {
+uint32_t WTLWireless::rxFrameOffset(uint32_t rxd1, uint32_t rxd2) {
     uint32_t off = 32;
     if (rxd1 & (1u << 19)) off += 16;                                 // group 4
     if (rxd1 & (1u << 16)) off += 16;                                 // group 1
@@ -222,7 +222,7 @@ uint32_t MtkWlan::rxFrameOffset(uint32_t rxd1, uint32_t rxd2) {
 }
 
 // RSSI in dBm from the P-RXV group (word 3 bits 7:0 = RCPI of chain 0, to_rssi: (rcpi - 220) / 2), or -127
-int8_t MtkWlan::rxRssi(const uint8_t *p, uint32_t len, uint32_t rxd1) {
+int8_t WTLWireless::rxRssi(const uint8_t *p, uint32_t len, uint32_t rxd1) {
     if (!(rxd1 & (1u << 18))) return -127;
     uint32_t off = 32;
     if (rxd1 & (1u << 19)) off += 16;
@@ -239,7 +239,7 @@ int8_t MtkWlan::rxRssi(const uint8_t *p, uint32_t len, uint32_t rxd1) {
 
 // Find the beacon / probe response in an RX buffer: at the offset the RXD groups give, else (the itlmt7925
 // rxParseFrame approach, kept as a fallback) by scanning for FC 0x80/0x50 with TA == BSSID
-void MtkWlan::mtkParseFrame(const uint8_t *p, uint32_t len) {
+void WTLWireless::mtkParseFrame(const uint8_t *p, uint32_t len) {
     if (len < 32 + 36 + 2) return;
     uint32_t rxd1 = le32(p + 4), rxd2 = le32(p + 8);
     uint32_t off = rxFrameOffset(rxd1, rxd2);
@@ -253,7 +253,7 @@ void MtkWlan::mtkParseFrame(const uint8_t *p, uint32_t len) {
 }
 
 // An 802.11 beacon / probe response (f = frame control): SSID and channel from its elements, then the cache
-void MtkWlan::bssNoteFrame(const uint8_t *f, uint32_t flen, int8_t rssi) {
+void WTLWireless::bssNoteFrame(const uint8_t *f, uint32_t flen, int8_t rssi) {
     if (flen < 36) return;
     const uint8_t *ie = f + 36, *end = f + flen;
     char ssid[33] = {};
@@ -272,7 +272,7 @@ void MtkWlan::bssNoteFrame(const uint8_t *f, uint32_t flen, int8_t rssi) {
 
 // The primary 20 MHz channels of the domain the firmware scans (kCh2 + kCh5): what the native front end reports as
 // supported channels. Any thread: the arrays are constants.
-uint32_t MtkWlan::coreChannels(uint8_t *list, uint32_t max) {
+uint32_t WTLWireless::coreChannels(uint8_t *list, uint32_t max) {
     uint8_t ch[sizeof(kCh2) + sizeof(kCh2Extra) + sizeof(kCh5)];
     uint32_t n2, n = domainChannels(ch, nullptr, &n2);
     if (n > max) n = max;
@@ -281,7 +281,7 @@ uint32_t MtkWlan::coreChannels(uint8_t *list, uint32_t max) {
 }
 
 // The same list with band and flags (ops v6). No 6 GHz entries: the core does not scan or join there yet.
-uint32_t MtkWlan::coreChannels2(mtk_chan *list, uint32_t max) {
+uint32_t WTLWireless::coreChannels2(mtk_chan *list, uint32_t max) {
     uint8_t ch[sizeof(kCh2) + sizeof(kCh2Extra) + sizeof(kCh5)];
     uint32_t fl[sizeof(ch)], n2, n = domainChannels(ch, fl, &n2);
     if (n > max) n = max;
@@ -295,7 +295,7 @@ uint32_t MtkWlan::coreChannels2(mtk_chan *list, uint32_t max) {
 }
 
 // The channels of the current country: 2.4 GHz first (*n2 of them), flags (CHAN_*) per channel when asked
-uint32_t MtkWlan::domainChannels(uint8_t *ch, uint32_t *flags, uint32_t *n2) {
+uint32_t WTLWireless::domainChannels(uint8_t *ch, uint32_t *flags, uint32_t *n2) {
     bool fcc = fccCountry(country);
     uint32_t n = 0;
     for (uint32_t i = 0; i < sizeof(kCh2); i++, n++) { ch[n] = kCh2[i]; if (flags) flags[n] = 0; }
@@ -311,7 +311,7 @@ uint32_t MtkWlan::domainChannels(uint8_t *ch, uint32_t *flags, uint32_t *n2) {
 
 // Upsert one BSS by BSSID: the newest beacon's fixed fields and elements, its security, when it was last seen.
 // The oldest entry goes when the cache is full (never the one being joined).
-void MtkWlan::bssNote(const uint8_t *frame, uint32_t len, const char *ssid, uint8_t ssidLen, uint8_t ch, int8_t rssi) {
+void WTLWireless::bssNote(const uint8_t *frame, uint32_t len, const char *ssid, uint8_t ssidLen, uint8_t ch, int8_t rssi) {
     if (len < 36) return;
     const uint8_t *bssid = frame + 16;
     int idx = -1;
@@ -359,7 +359,7 @@ void MtkWlan::bssNote(const uint8_t *frame, uint32_t len, const char *ssid, uint
 }
 
 // Security of a cached BSS from its RSN element (48), WPA vendor element (dd 00 50 f2 01) or Privacy bit
-void MtkWlan::bssParseSec(MtkBss &b) {
+void WTLWireless::bssParseSec(MtkBss &b) {
     b.sec = (b.cap & 0x10) ? MTK_SEC_WEP : MTK_SEC_OPEN;
     b.akm = b.pairwise = b.group = 0;
     b.rsnCaps = 0;
@@ -397,7 +397,7 @@ void MtkWlan::bssParseSec(MtkBss &b) {
 
 // What we can join: an open network without a key; with a PMK a WPA2 network that offers AKM PSK with pairwise
 // CCMP (EAPOL descriptor version 2) and a CCMP or TKIP group key, and does not require management frame protection
-bool MtkWlan::bssJoinable(const MtkBss &b, bool withKey) const {
+bool WTLWireless::bssJoinable(const MtkBss &b, bool withKey) const {
     if (!b.ssidLen) return false;
     if (!withKey) return b.sec == MTK_SEC_OPEN;
     if (b.sec != MTK_SEC_RSN) return false;
@@ -408,7 +408,7 @@ bool MtkWlan::bssJoinable(const MtkBss &b, bool withKey) const {
 }
 
 // Higher is better: signal, 5 GHz preferred, something we can join preferred
-int MtkWlan::bssScore(const MtkBss &b) const {
+int WTLWireless::bssScore(const MtkBss &b) const {
     int s = b.rssi;
     if (b.ch > 14) s += 10;
     if (!(b.flags & MTK_BSS_JOINABLE)) s -= 100;
@@ -416,7 +416,7 @@ int MtkWlan::bssScore(const MtkBss &b) const {
 }
 
 // Forget networks not seen for a minute (never the one being joined)
-void MtkWlan::bssAge() {
+void WTLWireless::bssAge() {
     for (int i = 0; i < nBss;) {
         if (ticks - bss[i].lastSeen > BSS_AGE_TICKS && !(joinState && !memcmp(bss[i].bssid, tgtBssid, 6))) {
             if (i != nBss - 1) bss[i] = bss[nBss - 1];
@@ -428,7 +428,7 @@ void MtkWlan::bssAge() {
 }
 
 // MtkScan property: ssid/channel/rssi/security per network (no BSSIDs, so ioreg dumps need no redaction)
-void MtkWlan::publishScan() {
+void WTLWireless::publishScan() {
     static const char *secName[] = {"open", "wep", "wpa", "wpa2"};
     static char list[1536];
     size_t n = 0;
@@ -449,7 +449,7 @@ void MtkWlan::publishScan() {
 // The station interface (mt76_connac_mcu_uni_add_dev, NL80211_IFTYPE_STATION): DEV_INFO with our own MAC, then the
 // idle BSS_INFO basic record. The firmware accepts unicast only for this address, so a station address change
 // (coreSetMac) removes the interface and adds it again with the new one, the way Linux re-adds the vif.
-int MtkWlan::devInfo(bool enable) {
+int WTLWireless::devInfo(bool enable) {
     uint8_t dev[16] = {};
     dev[0] = 0;                 // omac_idx
     dev[1] = 0xff;              // band_idx (mt7925 uses 0xff)
@@ -476,7 +476,7 @@ int MtkWlan::devInfo(bool enable) {
 
 // Everything after the firmware runs and before the first scan: NIC capability (MAC), EFUSE mode, MDP and band
 // init, the station interface, the US domain and power tables, RTS threshold and RX filter
-int MtkWlan::hwInit(bool keepMac) {
+int WTLWireless::hwInit(bool keepMac) {
     static uint8_t ev[512];
     uint32_t evl = 0;
 
@@ -553,7 +553,7 @@ int MtkWlan::hwInit(bool keepMac) {
 }
 
 // mt7925_regd_update order: CLC country tables, the channel domain (mt7925_mcu_set_channel_domain), the per-rate limits
-int MtkWlan::domainStage() {
+int WTLWireless::domainStage() {
     static uint8_t dom[16 + 8 * 48];
     bzero(dom, sizeof(dom));
     uint8_t ch[48];
@@ -577,7 +577,7 @@ int MtkWlan::domainStage() {
 
 // One firmware scan of every channel in the domain (mt7925_mcu_hw_scan): wildcard SSID, active where allowed.
 // Results arrive as beacons / probe responses on the data ring (bssNote), the end as event SCAN_DONE.
-int MtkWlan::scanStart() {
+int WTLWireless::scanStart() {
     static uint8_t sc[4 + 20 + 368 + 16 + 136 + 12];
     bzero(sc, sizeof(sc));
     uint8_t ch[48];
@@ -624,7 +624,7 @@ int MtkWlan::scanStart() {
 
 // Tick: finish a running scan half a second after SCAN_DONE (or at the 20 s limit), start a wanted one when
 // the radio is free (idle, or associated: the firmware scans around the association)
-void MtkWlan::scanService() {
+void WTLWireless::scanService() {
     if (scanRunning) {
         if (scanDone && !scanDoneAt) scanDoneAt = ticks;
         bool finish = (scanDoneAt && ticks - scanDoneAt >= SCAN_SETTLE_TICKS) || ticks - scanStartedAt >= SCAN_TIMEOUT_TICKS;

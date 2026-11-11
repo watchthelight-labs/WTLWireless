@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: src/MtkSupp.c | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkSupp.c | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC AND BSD-3-Clause-Clear
 // See MtkSupp.h for the rules this follows and where it came from.
 

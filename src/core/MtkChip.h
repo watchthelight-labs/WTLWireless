@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: src/MtkChip.h | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: src/core/MtkChip.h | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC
 // What differs between MT792x chips, as data: one row per chip in MtkChip.cpp. Code that is the same for every
 // chip we drive keeps its constants where they are used.
