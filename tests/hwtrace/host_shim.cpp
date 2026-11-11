@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: tests/hwtrace/host_shim.cpp | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: tests/hwtrace/host_shim.cpp | author: watchthelight </wtl>
 // Host side of the shim headers: the trace sink, the DMA address space, and the register accessors that route
 // BAR0 accesses into the device model.
 
@@ -31,6 +31,12 @@ void hw_trace(const char *fmt, ...) {
 void hw_unexpected(const char *what) { hw_trace("UNEXPECTED %s", what); }
 
 uint16_t g_hw_pci_device = 0x7925;
+bool g_hw_old_set = false;
+
+const OSMetaClass *OSMetaClass::getMetaClassWithName(const OSSymbol *name) {
+    static OSMetaClass old;
+    return g_hw_old_set && name && name->s == "MtkWlan" ? &old : nullptr;
+}
 
 void hw_property(const char *key, const std::string &val) {
     if (!strcmp(key, "MtkState")) hw_trace("STEP %s", val.c_str());

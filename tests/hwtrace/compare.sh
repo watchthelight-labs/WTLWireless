@@ -1,5 +1,5 @@
 #!/bin/bash
-# <wtl> project: mtkwlan | file: tests/hwtrace/compare.sh | author: watchthelight </wtl>
+# <wtl> project: wtlwireless | file: tests/hwtrace/compare.sh | author: watchthelight </wtl>
 # compare.sh [git-ref]: hardware trace of the driver sources at git-ref (default HEAD, via a temporary git worktree)
 # against the working tree. Harness sources always come from the working tree. Exit 0 identical, 1 different.
 set -eu -o pipefail

@@ -1,7 +1,7 @@
-<!-- <wtl> project: mtkwlan | file: tests/hwtrace/README.md | author: watchthelight </wtl> -->
+<!-- <wtl> project: wtlwireless | file: tests/hwtrace/README.md | author: watchthelight </wtl> -->
 # hwtrace
 
-Host-side proof tool for changes that must not alter what MtkWlan does to the hardware, such as moving chip constants
+Host-side proof tool for changes that must not alter what the WTLWireless core does to the hardware, such as moving chip constants
 into the table in `MtkChip.cpp`. It compiles the driver's real sources on the Mac
 (plain user space, clang, UBSan), runs the bring-up against a fake MT7925 and records every register access, MCU
 message, firmware chunk, DMA ring setup and TX frame as one text line. Two versions of the driver source give the same
@@ -16,7 +16,7 @@ trace if and only if they do the same thing to the hardware (as far as the fake 
 All paths are relative to the driver folder (the one with the `Makefile`). Output goes to `out/tests/hwtrace/`. No sudo, no kernel, no network.
 `compare.sh` prints `hwtrace: identical (N events)` or a unified diff and exits 1. The harness always comes from the
 working tree; only the driver sources differ. The driver source list is read from the Makefile `SRCS`, so a new driver
-file is picked up without touching the harness (MtkWlanEth.cpp and MtkUserClient.cpp are left out).
+file is picked up without touching the harness (WTLWirelessEth.cpp and MtkUserClient.cpp are left out).
 
 ## Trace format
 
@@ -27,6 +27,10 @@ file is picked up without touching the harness (MtkWlanEth.cpp and MtkUserClient
 fixed bump allocator. No host pointers, no timestamps. `hwtrace <file> --props` adds `PROP` lines (the registry
 properties the driver publishes) for debugging. `--pcidev 7927` makes the fake card report another PCI device ID;
 `run.sh` uses it to check that a card without a chip table row gets no register access at all.
+`--oldset` pretends the class of the older kext set (`MtkWlan`) is in the kernel too: the core must then publish
+`MtkConflict` on the PCI device and touch nothing. `compare.sh` works across the rename from MtkWlan to WTLWireless (the
+harness takes whichever class the tree under test has); against 0.13.0 the only changed line is the status text that
+names the native front end.
 
 ## What it covers
 

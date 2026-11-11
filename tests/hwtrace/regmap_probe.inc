@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: tests/hwtrace/regmap_probe.inc | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: tests/hwtrace/regmap_probe.inc | author: watchthelight </wtl>
 // One probe per fixed register window of mt7925/pci.c (chip address, window size): first and last word of each.
 // Taken from the driver table at the time of writing; the harness reads these through rr() so a changed window shows in the trace.
 { 0x830c0000, 0x000000, 0x0001000 },

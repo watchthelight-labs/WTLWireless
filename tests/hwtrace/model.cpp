@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: tests/hwtrace/model.cpp | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: tests/hwtrace/model.cpp | author: watchthelight </wtl>
 // Fake MT7925. Register addresses and message layouts here come from the Linux mt76 sources and are written down
 // independently of the driver, so a changed driver constant shows up as a different trace or a failed handshake.
 // Every place the behaviour is a guess is marked GUESS and listed in the README.

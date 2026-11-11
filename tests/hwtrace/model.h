@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: tests/hwtrace/model.h | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: tests/hwtrace/model.h | author: watchthelight </wtl>
 // Fake MT7925 for the hwtrace harness: BAR0 register file, WFDMA ring engine, MCU firmware and a tiny AP.
 #ifndef HWTRACE_MODEL_H
 #define HWTRACE_MODEL_H

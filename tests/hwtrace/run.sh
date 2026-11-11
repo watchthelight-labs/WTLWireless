@@ -1,5 +1,5 @@
 #!/bin/bash
-# <wtl> project: mtkwlan | file: tests/hwtrace/run.sh | author: watchthelight </wtl>
+# <wtl> project: wtlwireless | file: tests/hwtrace/run.sh | author: watchthelight </wtl>
 # Build the harness against the working-tree driver, run it twice, fail if the two traces differ.
 # Writes out/tests/hwtrace/{trace.txt,functions-run.txt,functions-not-run.txt}.
 set -eu -o pipefail
@@ -21,8 +21,8 @@ rm "$OUT/trace.2.txt"
 LC_ALL=C sort -u -o "$OUT/functions-run.txt" "$OUT/functions-run.txt"
 
 # every non-static driver function in the compiled objects, minus the ones that ran
-nm -g -U "$B"/obj/Mtk*.o | awk 'NF==3 && $2=="T" {print $3}' | sed 's/^_//' | c++filt \
-    | sed 's/(.*//' | grep -E '^(MtkWlan::|mtk_)' | LC_ALL=C sort -u > "$OUT/functions-all.txt"
+nm -g -U $(ls "$B"/obj/*.o | grep -v '/hw_') | awk 'NF==3 && $2=="T" {print $3}' | sed 's/^_//' | c++filt \
+    | sed 's/(.*//' | grep -E '^(WTLWireless::|MtkWlan::|mtk_)' | LC_ALL=C sort -u > "$OUT/functions-all.txt"
 LC_ALL=C comm -23 "$OUT/functions-all.txt" "$OUT/functions-run.txt" > "$OUT/functions-not-run.txt"
 LC_ALL=C comm -12 "$OUT/functions-all.txt" "$OUT/functions-run.txt" > "$OUT/functions-run-public.txt"
 
@@ -49,3 +49,11 @@ grep '^OPS6 ' "$OUT/trace.ops6.txt" | sed 's/^/hwtrace: /'
 t=$(grep -c -v '^PHASE \|^STEP \|^RESULT ' "$OUT/trace.unknown.txt" || true)
 [ "$t" = 0 ] || { echo "hwtrace: unknown card: $t hardware events, want 0" >&2; grep -v '^PHASE \|^STEP \|^RESULT ' "$OUT/trace.unknown.txt" | head -5 >&2; exit 1; }
 echo "hwtrace: unknown card (14c3:7927): no hardware access"
+
+# with the older MtkWlan class in the kernel the core must leave the card alone and say why
+"$B/hwtrace" "$OUT/trace.oldset.txt" --oldset --props
+t=$(grep -c '^W \|^R \|^MCU \|^FWDL ' "$OUT/trace.oldset.txt" || true)
+if [ "$t" != 0 ] || ! grep -q 'MtkConflict' "$OUT/trace.oldset.txt"; then
+  echo "hwtrace: old kext set present: $t hardware events (want 0) or no MtkConflict" >&2; head -5 "$OUT/trace.oldset.txt" >&2; exit 1
+fi
+echo "hwtrace: older MtkWlan class present: no hardware access, MtkConflict published"

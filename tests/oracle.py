@@ -1,4 +1,4 @@
-# <wtl> project: mtkwlan | file: tests/oracle.py | author: watchthelight </wtl>
+# <wtl> project: wtlwireless | file: tests/oracle.py | author: watchthelight </wtl>
 # Independent oracle for the MtkCrypto tests: the same values computed with Python's hashlib / hmac, so the C
 # implementation is checked against a second implementation as well as against the published vectors.
 # Run: python3 -I tests/oracle.py   (prints name hexvalue lines; tests/run.sh compares them with the C output)

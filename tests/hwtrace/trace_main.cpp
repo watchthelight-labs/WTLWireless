@@ -1,11 +1,19 @@
-// <wtl> project: mtkwlan | file: tests/hwtrace/trace_main.cpp | author: watchthelight </wtl>
-// Drives the real MtkWlan code against the fake MT7925 and writes the hardware trace.
-// usage: hwtrace <trace.txt> [--cov <functions.txt>] [--props] [--pcidev hex] [--ops6]
+// <wtl> project: wtlwireless | file: tests/hwtrace/trace_main.cpp | author: watchthelight </wtl>
+// Drives the real WTLWireless code against the fake MT7925 and writes the hardware trace.
+// usage: hwtrace <trace.txt> [--cov <functions.txt>] [--props] [--pcidev hex] [--ops6] [--oldset]
 
 #include "model.h"
 #include <hw_shim.h>
 #include <signal.h>
+#if __has_include("WTLWireless.hpp")
+#include "WTLWireless.hpp"
+typedef WTLWireless Core;
+#define CORE_SCOPE "WTLWireless::"
+#else   // a tree from before the rename (compare.sh with an older ref)
 #include "MtkWlan.hpp"
+typedef MtkWlan Core;
+#define CORE_SCOPE "MtkWlan::"
+#endif
 
 void hw_set_props(bool on);
 const std::string &hw_trace_text();
@@ -41,7 +49,7 @@ void writeCoverage(const char *path) {
         free(dm);
         size_t p = n.find('(');
         if (p != std::string::npos && n.compare(0, 11, "(anonymous ") != 0) n.resize(p);
-        if (n.compare(0, 9, "MtkWlan::") == 0 || n.compare(0, 4, "mtk_") == 0 || n.compare(0, 11, "(anonymous ") == 0 ||
+        if (n.compare(0, sizeof(CORE_SCOPE) - 1, CORE_SCOPE) == 0 || n.compare(0, 4, "mtk_") == 0 || n.compare(0, 11, "(anonymous ") == 0 ||
             n.compare(0, 5, "Msg::") == 0)
             names.insert(n);
     }
@@ -52,7 +60,7 @@ void writeCoverage(const char *path) {
 }
 
 // Tick the driver until done() or n ticks have passed; returns the ticks used
-template <class F> int tickUntil(MtkWlan *d, int n, F done) {
+template <class F> int tickUntil(Core *d, int n, F done) {
     int i = 0;
     while (i < n && !done()) { d->tick(); i++; }
     return i;
@@ -67,8 +75,8 @@ __attribute__((no_instrument_function)) void __cyg_profile_func_exit(void *, voi
 // --ops6: the v6 calls against the older ones, while joined. Extra lines, so never part of the compared trace.
 static bool g_ops6 = false;
 #ifdef MTK_CORE_API_V6
-static void checkOps6(MtkWlan *d) {
-    const mtk_core_ops_v6 *o = &MtkWlan::kOpsV6;
+static void checkOps6(Core *d) {
+    const mtk_core_ops_v6 *o = &Core::kOpsV6;
     if (o->v5.v4.v3.v2.v1.version != MTK_CORE_API_V6 || o->v5.v4.v3.v2.v1.size != sizeof(*o)) hw_trace("UNEXPECTED ops6 header");
     mtk_chip_info ci;
     memset(&ci, 0xee, sizeof(ci));
@@ -110,7 +118,7 @@ static void checkOps6(MtkWlan *d) {
         hw_trace("UNEXPECTED ops6 link chan");
 }
 #else
-static void checkOps6(MtkWlan *) { hw_trace("UNEXPECTED ops6 asked of a core without it"); }
+static void checkOps6(Core *) { hw_trace("UNEXPECTED ops6 asked of a core without it"); }
 #endif
 
 int main(int argc, char **argv) {
@@ -119,6 +127,7 @@ int main(int argc, char **argv) {
         if (!strcmp(argv[i], "--cov") && i + 1 < argc) covPath = argv[++i];
         else if (!strcmp(argv[i], "--props")) hw_set_props(true);
         else if (!strcmp(argv[i], "--ops6")) g_ops6 = true;
+        else if (!strcmp(argv[i], "--oldset")) g_hw_old_set = true;
         else if (!strcmp(argv[i], "--pcidev") && i + 1 < argc) g_hw_pci_device = (uint16_t)strtoul(argv[++i], nullptr, 16);
         else g_tracePath = argv[i];
     }
@@ -127,7 +136,7 @@ int main(int argc, char **argv) {
 
     g_model = new Mt7925Model;
     IOPCIDevice *pci = new IOPCIDevice;
-    MtkWlan *d = new MtkWlan;
+    Core *d = new Core;
     d->init();
 
     // 1. PCI start: BAR0, ownership handshake, CHIPID gate, then hwStart (WFSYS reset, rings, prefetch, IRQ mask,
@@ -161,7 +170,7 @@ int main(int argc, char **argv) {
 
         // 5. a new country: channel domain, CLC and per-rate power again
         hw_trace("PHASE country");
-        MtkWlan::opSetCountry(d, "DE");
+        Core::opSetCountry(d, "DE");
         tickUntil(d, 400, [&] { return !d->countryPending; });
 
         // 6. register windows: first and last word of every fixed window, the L1 and L2 remap paths, a direct offset

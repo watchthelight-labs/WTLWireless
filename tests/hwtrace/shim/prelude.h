@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: tests/hwtrace/shim/prelude.h | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: tests/hwtrace/shim/prelude.h | author: watchthelight </wtl>
 // Force-included in every C++ unit: host headers first, then private/protected opened so the harness can call
 // driver internals without touching the driver sources. All units see the same layout.
 #ifndef HWTRACE_PRELUDE_H

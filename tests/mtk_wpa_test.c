@@ -1,11 +1,11 @@
-// <wtl> project: mtkwlan | file: tests/mtk_wpa_test.c | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: tests/mtk_wpa_test.c | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC
 // Host test of MtkCrypto.c and MtkSupp.c (built with the host clang, not the kext flags): published vectors,
 // values from the independent Python oracle (tests/oracle.py), and the 4-way / group handshake against a
 // simulated authenticator, including the KRACK and replay cases. Run with tests/run.sh.
 
-#include "../src/MtkCrypto.h"
-#include "../src/MtkSupp.h"
+#include "../src/core/MtkCrypto.h"
+#include "../src/core/MtkSupp.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

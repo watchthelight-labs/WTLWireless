@@ -1,12 +1,13 @@
 #!/bin/bash
-# <wtl> project: mtkwlan | file: tests/hwtrace/selftest.sh | author: watchthelight </wtl>
+# <wtl> project: wtlwireless | file: tests/hwtrace/selftest.sh | author: watchthelight </wtl>
 # Sensitivity check: mutate a scratch copy of the driver sources one constant at a time and require that each
 # mutation changes the trace. The real sources are never touched. Exit 0 when every mutation is seen.
 set -eu -o pipefail
 HW="$(cd "$(dirname "$0")" && pwd)"
 MAIN="$(cd "$HW/../.." && pwd)"
 OUT="$MAIN/out/tests/hwtrace/selftest"
-SRC="$MAIN"; SUB=.; [ -d "$MAIN/src" ] && { SRC="$MAIN/src"; SUB=src; }   # sources beside the Makefile, or in src/
+SRC="$MAIN"; SUB=.; [ -d "$MAIN/src" ] && { SRC="$MAIN/src"; SUB=src; }   # sources beside the Makefile, in src/,
+[ -d "$MAIN/src/core" ] && { SRC="$MAIN/src/core"; SUB=src/core; }                # or in src/core/
 mkdir -p "$OUT"
 
 "$HW/build.sh" "$MAIN" "$OUT/ref-build"

@@ -1,10 +1,10 @@
-// <wtl> project: mtkwlan | file: tests/mtk_super_test.c | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: tests/mtk_super_test.c | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC
 // Host tests for the link supervisor (MtkSuper.c): every decision path, the reload cap, and the PMK hex parser.
 
 #include <stdio.h>
 #include <string.h>
-#include "../src/MtkSuper.h"
+#include "../src/core/MtkSuper.h"
 
 static int fails;
 #define CHECK(name, cond) do { if (cond) printf("ok   %s\n", name); else { printf("FAIL %s\n", name); fails++; } } while (0)

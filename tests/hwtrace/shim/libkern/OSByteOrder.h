@@ -1,4 +1,4 @@
-// <wtl> project: mtkwlan | file: tests/hwtrace/shim/libkern/OSByteOrder.h | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: tests/hwtrace/shim/libkern/OSByteOrder.h | author: watchthelight </wtl>
 // The real header first (system headers pull it in), then the 32-bit accessors are redirected into the device model.
 #ifndef HWTRACE_OSBYTEORDER_H
 #define HWTRACE_OSBYTEORDER_H

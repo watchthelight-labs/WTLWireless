@@ -1,5 +1,5 @@
-// <wtl> project: mtkwlan | file: tests/hwtrace/shim/hw_shim.h | author: watchthelight </wtl>
-// Host stand-ins for the kernel and IOKit pieces MtkWlan uses. Only what the bring-up, scan, join and power paths
+// <wtl> project: wtlwireless | file: tests/hwtrace/shim/hw_shim.h | author: watchthelight </wtl>
+// Host stand-ins for the kernel and IOKit pieces WTLWireless uses. Only what the bring-up, scan, join and power paths
 // need; anything else is reported as UNEXPECTED in the trace instead of silently succeeding.
 #ifndef HW_SHIM_H
 #define HW_SHIM_H
@@ -12,6 +12,7 @@ void hw_trace(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void hw_unexpected(const char *what);
 void hw_property(const char *key, const std::string &val);
 extern uint16_t g_hw_pci_device;       // PCI device ID the fake card reports (--pcidev)
+extern bool g_hw_old_set;              // the older MtkWlan class is in the kernel too (--oldset)
 uint8_t *hw_dma_alloc(uint32_t size, uint32_t align, uint32_t *iova);
 uint8_t *hw_dma_host(uint32_t iova);
 uint8_t *hw_bar();
@@ -53,9 +54,11 @@ public:
     void retain() { rc++; }
     void release() { if (--rc == 0) { free(); delete this; } }
 };
+class OSSymbol;
 class OSMetaClass {
 public:
     static OSObject *allocClassWithName(const char *) { return nullptr; }
+    static const OSMetaClass *getMetaClassWithName(const OSSymbol *name);   // "MtkWlan" exists with --oldset
 };
 class OSString : public OSObject {
 public:
@@ -64,7 +67,11 @@ public:
     const char *getCStringNoCopy() const { return s.c_str(); }
     bool isEqualTo(const char *o) const { return s == o; }
 };
-class OSSymbol : public OSString {};
+class OSSymbol : public OSString {
+public:
+    static const OSSymbol *withCString(const char *c) { OSSymbol *o = new OSSymbol; o->s = c; return o; }
+    void release() const { const_cast<OSSymbol *>(this)->OSObject::release(); }
+};
 class OSNumber : public OSObject {
 public:
     uint64_t v = 0;

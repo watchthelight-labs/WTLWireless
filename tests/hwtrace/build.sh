@@ -1,8 +1,8 @@
 #!/bin/bash
-# <wtl> project: mtkwlan | file: tests/hwtrace/build.sh | author: watchthelight </wtl>
+# <wtl> project: wtlwireless | file: tests/hwtrace/build.sh | author: watchthelight </wtl>
 # build.sh <driver-dir> <build-dir>: compile the driver sources that <driver-dir>/Makefile lists, plus the harness
 # from this working tree, into <build-dir>/hwtrace. Host clang only, UBSan on, nothing outside <build-dir>.
-# The sources sit beside the Makefile or in src/ under it; both layouts work.
+# The sources sit beside the Makefile, in src/ under it, or in src/core/; all three layouts work.
 set -eu -o pipefail
 HW="$(cd "$(dirname "$0")" && pwd)"
 MAIN="$(cd "$HW/../.." && pwd)"
@@ -26,12 +26,12 @@ fi
 # the kext's own source list, minus the IOKit networking front ends and the firmware blob
 SRCS=$(awk '/^SRCS *:=/ { f = 1; sub(/^SRCS *:= */, "") } f { c = sub(/\\$/, ""); printf "%s ", $0; if (!c) exit }' "$DRV/Makefile")
 UBSAN="-fsanitize=undefined -fno-sanitize-recover=undefined"
-INC="$DRV"; [ -d "$DRV/src" ] && INC="$DRV/src"
+INC="$DRV"; [ -d "$DRV/src" ] && INC="$DRV/src"; [ -d "$DRV/src/core" ] && INC="$DRV/src/core"
 CXXF="-std=gnu++17 -O0 -g $UBSAN -include $HW/shim/prelude.h -I$HW/shim -I$INC -w"
 CF="-std=gnu11 -O0 -g $UBSAN -I$HW/shim -I$INC -w"
 pids=(); objs=()
 for s in $SRCS; do
-    case "$(basename "$s")" in MtkWlanEth.cpp|MtkUserClient.cpp|MtkFirmware.c) continue;; esac
+    case "$(basename "$s")" in WTLWirelessEth.cpp|MtkWlanEth.cpp|MtkUserClient.cpp|MtkFirmware.c) continue;; esac
     o="$B/obj/$(basename "$s").o"; objs+=("$o")
     case "$s" in
         *.cpp) clang++ $CXXF -finstrument-functions -c "$DRV/$s" -o "$o" & ;;
