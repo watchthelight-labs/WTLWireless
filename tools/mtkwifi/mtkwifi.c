@@ -1,6 +1,6 @@
-// <wtl> project: mtkwlan | file: tools/mtkwifi/mtkwifi.c | author: watchthelight </wtl>
+// <wtl> project: wtlwireless | file: tools/mtkwifi/mtkwifi.c | author: watchthelight </wtl>
 // SPDX-License-Identifier: ISC
-// mtkwifi: userspace control for the MtkWlan kext (MT7925) through its IOUserClient (MtkUserApi.h).
+// mtkwifi: userspace control for the WTLWireless core (MT7925; MtkWlan in the older kext set) through its IOUserClient (MtkUserApi.h).
 //   mtkwifi status [--json]            driver and connection state
 //   mtkwifi scan [--wait]              start a scan (root); --wait prints the list when it is done
 //   mtkwifi list [--json]              networks in the driver's cache, best first
@@ -10,7 +10,7 @@
 //   mtkwifi forget <ssid>              remove a saved network (root)
 //   mtkwifi networks                   list saved SSIDs
 //   mtkwifi autojoin [--wait SECONDS]  wait for the driver, scan, join the first saved network in range (the LaunchDaemon)
-//   mtkwifi pmk <ssid>                 asks for the passphrase, prints an MtkAutoNetworks entry for MtkWlan's Info.plist
+//   mtkwifi pmk <ssid>                 asks for the passphrase, prints an MtkAutoNetworks entry for the core's Info.plist
 // The passphrase is never written anywhere: the PMK (PBKDF2-SHA1, mtk_wpa_pmk from the kext's own MtkCrypto.c) goes
 // to /Library/Application Support/legion/mtkwifi/networks.plist, root only, mode 0600, outside the repository.
 
@@ -56,20 +56,26 @@ static void sleep_ms(unsigned ms) {
 
 // ---------------------------------------------------------------- driver
 
+// The core is WTLWireless; in the older three-kext set it is MtkWlan. Same user client either way.
+static io_service_t find_core(void) {
+    io_service_t svc = IOServiceGetMatchingService(MACH_PORT_NULL, IOServiceMatching("WTLWireless"));
+    return svc ? svc : IOServiceGetMatchingService(MACH_PORT_NULL, IOServiceMatching("MtkWlan"));
+}
+
 static io_connect_t open_driver(int wait_s) {
     for (int i = 0;; i++) {
-        io_service_t svc = IOServiceGetMatchingService(MACH_PORT_NULL, IOServiceMatching("MtkWlan"));
+        io_service_t svc = find_core();
         if (svc) {
             io_connect_t conn = 0;
             kern_return_t kr = IOServiceOpen(svc, mach_task_self(), 0, &conn);
             IOObjectRelease(svc);
             if (kr == KERN_SUCCESS) return conn;
             if (kr == kIOReturnUnsupported || kr == kIOReturnNoResources)
-                die("the MtkWlan driver has no user client (older than 0.9.0, or its bring-up failed: see MtkState in "
-                    "`ioreg -r -c MtkWlan`): 0x%x", kr);
+                die("the driver has no user client (older than 0.9.0, or its bring-up failed: see MtkState in "
+                    "`ioreg -r -c WTLWireless`, or `-c MtkWlan` for the older kexts): 0x%x", kr);
             if (i >= wait_s) die("IOServiceOpen failed: 0x%x", kr);
         } else if (i >= wait_s) {
-            die("MtkWlan is not loaded");
+            die("neither WTLWireless nor the older MtkWlan is loaded");
         }
         sleep_ms(1000);
     }
@@ -361,7 +367,7 @@ static int cmd_pmk(const char *ssid) {
     for (int i = 0; i < 32; i++) printf("%02x", pmk[i]);
     printf("</string>\n\t\t\t\t</dict>\n");
     mtk_zero(pmk, sizeof(pmk));
-    fprintf(stderr, "paste it into the MtkAutoNetworks array of MtkWlan.kext/Contents/Info.plist; anyone who can read "
+    fprintf(stderr, "paste it into the MtkAutoNetworks array of WTLWireless.kext/Contents/Info.plist; anyone who can read "
                     "that file can join this network\n");
     return 0;
 }

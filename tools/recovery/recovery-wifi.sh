@@ -1,9 +1,9 @@
 #!/bin/bash
-# <wtl> project: mtkwlan | file: tools/recovery/recovery-wifi.sh | author: watchthelight </wtl>
-# Wi-Fi from macOS Recovery or a USB installer with MtkWlan. Run from Terminal (Utilities > Terminal):
-#   bash /Volumes/<EFI or stick>/MtkWlan/recovery-wifi.sh [ID]
-# With MtkWlanNative engaged, the Wi-Fi menu in the menu bar does the work and this only records what happened.
-# Without it (another macOS build, or MtkWlan alone), it scans, asks which network and its password, and joins.
+# <wtl> project: wtlwireless | file: tools/recovery/recovery-wifi.sh | author: watchthelight </wtl>
+# Wi-Fi from macOS Recovery or a USB installer with WTLWireless. Run from Terminal (Utilities > Terminal):
+#   bash /Volumes/<EFI or stick>/WTLWireless/recovery-wifi.sh [ID]
+# With the native part engaged, the Wi-Fi menu in the menu bar does the work and this only records what happened.
+# Without it (another macOS build, or the core alone), it scans, asks which network and its password, and joins.
 # Nothing is stored: the password goes from the keyboard to the driver as a PMK and is gone at the next restart.
 # Then it runs wifi.sh (DHCP, ping, captive.apple.com) and writes a capture to wifi-<ID>/ next to this script.
 ID="${1:-recovery}"
@@ -13,8 +13,8 @@ D="$DIR/wifi-$ID"
 mkdir -p "$D" || { echo "cannot write $D"; exit 1; }
 
 [ -x "$MTK" ] || chmod +x "$MTK" 2>/dev/null
-if ! ioreg -r -c MtkWlan -d 1 | grep -q MtkWlan; then
-  echo "MtkWlan is not loaded: check that MtkWlan.kext is in EFI/OC/Kexts and enabled in config.plist"
+if ! ioreg -r -c WTLWireless -d 1 | grep -q WTLWireless; then
+  echo "WTLWireless is not loaded: check that WTLWireless.kext is in EFI/OC/Kexts and enabled in config.plist"
   kmutil showloaded 2>/dev/null | grep -i watchthelight > "$D/kexts.txt"
   exit 1
 fi
@@ -41,9 +41,9 @@ else
 fi
 
 "$MTK" status > "$D/status-after.txt" 2>&1
-ioreg -r -c MtkWlan -l -w0 > "$D/mtkwlan.txt" 2>&1
-ioreg -r -c MtkWlanNative -l -w0 > "$D/mtkwlannative.txt" 2>&1
-/usr/bin/log show --last 10m --predicate 'process == "airportd" OR process == "WiFiAgent" OR sender BEGINSWITH "MtkWlan"' \
+ioreg -r -c WTLWireless -l -w0 > "$D/wtlwireless.txt" 2>&1
+ioreg -r -c WTLWirelessNative -l -w0 > "$D/wtlwirelessnative.txt" 2>&1
+/usr/bin/log show --last 10m --predicate 'process == "airportd" OR process == "WiFiAgent" OR sender BEGINSWITH "WTLWireless"' \
   > "$D/log.txt" 2>&1
 sync
 # DHCP, router ping, captive portal check and a short speed test (also captures ifconfig and routes)

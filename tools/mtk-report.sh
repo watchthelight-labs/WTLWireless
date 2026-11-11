@@ -1,6 +1,6 @@
 #!/bin/bash
-# <wtl> project: mtkwlan | file: tools/mtk-report.sh | author: watchthelight </wtl>
-# Collect what a bug report about MtkWlan / MtkWlanNative needs into one archive on the Desktop.
+# <wtl> project: wtlwireless | file: tools/mtk-report.sh | author: watchthelight </wtl>
+# Collect what a bug report about WTLWireless (or the older MtkWlan / MtkWlanNative kexts) needs into one archive on the Desktop.
 #   bash mtk-report.sh [--no-redact] [--minutes N]
 # No sudo needed. MAC addresses and SSIDs are replaced by stable placeholders unless --no-redact is given; the archive
 # never contains keys or passphrases (the driver keeps none in ioreg). Attach the .tar.gz to a GitHub issue.
@@ -12,12 +12,12 @@ step() { echo "  $1"; }
 echo "collecting into $OUT"
 step "system";        { sw_vers; uname -a; sysctl -n kern.bootargs; } > "$OUT/system.txt" 2>&1
 step "pci";           ioreg -r -c IOPCIDevice -l -w0 2>/dev/null | grep -B2 -A30 '"vendor-id" = <c314' | grep -E 'IOName|vendor-id|device-id|subsystem|revision-id|pcidebug|IOPCIExpressLinkStatus|name"' > "$OUT/pci-mediatek.txt" 2>&1
-step "kexts";         kextstat 2>/dev/null | grep -E 'watchthelight|Mtk|IO80211|IOSkywalk' > "$OUT/kextstat.txt"; for k in MtkWlan MtkWlanNative; do kmutil showloaded --bundle-identifier org.watchthelight.$k 2>/dev/null; done >> "$OUT/kextstat.txt" 2>&1
-step "ioreg";         for c in MtkWlan MtkWlanEth MtkWlanNative MtkWlanNativeIf; do ioreg -r -c $c -l -w0 2>/dev/null > "$OUT/ioreg-$c.txt"; done
+step "kexts";         kextstat 2>/dev/null | grep -E 'watchthelight|Mtk|IO80211|IOSkywalk' > "$OUT/kextstat.txt"; for k in WTLWireless WTLWireless.Native WTLWireless.Bt MtkWlan MtkWlanNative MtkBt; do kmutil showloaded --bundle-identifier org.watchthelight.$k 2>/dev/null; done >> "$OUT/kextstat.txt" 2>&1
+step "ioreg";         for c in WTLWireless WTLWirelessEth WTLWirelessNative WTLWirelessNativeIf WTLWirelessBt MtkWlan MtkWlanEth MtkWlanNative MtkWlanNativeIf MtkBt; do ioreg -r -c $c -l -w0 2>/dev/null > "$OUT/ioreg-$c.txt"; [ -s "$OUT/ioreg-$c.txt" ] || rm -f "$OUT/ioreg-$c.txt"; done
 step "interfaces";    { ifconfig -a; echo; netstat -rn; echo; networksetup -listallhardwareports; echo; networksetup -listnetworkserviceorder; } > "$OUT/network.txt" 2>&1
 step "mtkwifi";       { command -v mtkwifi >/dev/null && mtkwifi status --json; command -v mtkwifi >/dev/null && mtkwifi list; } > "$OUT/mtkwifi.txt" 2>&1
 step "wifi profile";  system_profiler SPAirPortDataType > "$OUT/airport-profile.txt" 2>&1
-step "kernel log";    log show --last "${MIN}m" --predicate 'process == "kernel" AND (eventMessage CONTAINS "MtkWlan" OR eventMessage CONTAINS "Mtk" OR eventMessage CONTAINS "80211")' --style compact > "$OUT/kernel-log.txt" 2>&1
+step "kernel log";    log show --last "${MIN}m" --predicate 'process == "kernel" AND (eventMessage CONTAINS "WTLWireless" OR eventMessage CONTAINS "Mtk" OR eventMessage CONTAINS "80211")' --style compact > "$OUT/kernel-log.txt" 2>&1
 step "wifi daemons";  log show --last "${MIN}m" --info --predicate 'process == "airportd" OR process == "wifid" OR process == "WiFiAgent" OR subsystem BEGINSWITH "com.apple.wifi" OR (subsystem == "com.apple.IPConfiguration" AND eventMessage CONTAINS "en")' --style compact > "$OUT/wifi-daemons.txt" 2>&1
 step "panics";        ls -t /Library/Logs/DiagnosticReports/panic*.ips 2>/dev/null | head -3 | while read -r f; do cp "$f" "$OUT/"; done
 if [ "$REDACT" = 1 ]; then
@@ -66,4 +66,4 @@ fi
 A=~/Desktop/$(basename "$OUT").tar.gz
 tar -czf "$A" -C "$(dirname "$OUT")" "$(basename "$OUT")" && rm -rf "$OUT"
 echo "report: $A"
-echo "open an issue at github.com/watchthelight-labs/WTLMtkWireless (or mt7925-hackintosh-wifi-native) and attach it; say which card (PCI ids are in pci-mediatek.txt), which macOS build, and what you did"
+echo "open an issue at github.com/watchthelight-labs/WTLWireless and attach it; say which card (PCI ids are in pci-mediatek.txt), which macOS build, and what you did"

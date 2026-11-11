@@ -1,6 +1,6 @@
 # mtkwifi
 
-Command line control for the MtkWlan kext through its IOUserClient (`src/MtkUserApi.h`). It lists networks, joins one (open or WPA2-PSK), and keeps the saved networks the autojoin daemon uses at boot. Needs MtkWlan 0.9.0 or newer. There is no Wi-Fi menu: macOS sees an Ethernet card, and this tool is how you pick a network.
+Command line control for the Wi-Fi core through its IOUserClient (`src/core/MtkUserApi.h`). It lists networks, joins one (open or WPA2-PSK), and keeps the saved networks the autojoin daemon uses at boot. Works with WTLWireless and with MtkWlan 0.9.0 or newer. There is no Wi-Fi menu: macOS sees an Ethernet card, and this tool is how you pick a network.
 
 ## Commands
 

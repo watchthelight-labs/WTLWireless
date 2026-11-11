@@ -1,5 +1,5 @@
 #!/bin/bash
-# <wtl> project: mtkwlan | file: tools/mtkwifi/install.sh | author: watchthelight </wtl>
+# <wtl> project: wtlwireless | file: tools/mtkwifi/install.sh | author: watchthelight </wtl>
 # Install the mtkwifi tool and its autojoin LaunchDaemon (run with sudo).
 # Undo:
 #   sudo launchctl bootout system/org.watchthelight.mtkwifi

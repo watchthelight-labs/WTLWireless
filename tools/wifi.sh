@@ -1,9 +1,9 @@
 #!/bin/bash
-# <wtl> project: mtkwlan | file: tools/wifi.sh | author: watchthelight </wtl>
-# Wi-Fi driver (MtkWlan) milestone capture for macOS Recovery. Run from Recovery Terminal:
+# <wtl> project: wtlwireless | file: tools/wifi.sh | author: watchthelight </wtl>
+# Wi-Fi driver (WTLWireless, or the older MtkWlan) milestone capture for macOS Recovery. Run from Recovery Terminal:
 #   bash /Volumes/<stick>/wifi.sh run1
 # Writes wifi-<ID>/ next to the script and prints a short summary on screen.
-# W6: if MtkWlan attached a network interface, asks for a DHCP lease on it, pings the router and
+# W6: if the driver attached a network interface, asks for a DHCP lease on it, pings the router and
 # fetches http://captive.apple.com (a captive portal answers it before login). Nothing else changes.
 ID="${1:-run}"
 D="$(cd "$(dirname "$0")" && pwd)/wifi-$ID"
@@ -11,7 +11,7 @@ mkdir -p "$D" || { echo "cannot write $D"; exit 1; }
 cd "$D" || exit 1
 
 { echo "date -u: $(date -u)"; sysctl kern.boottime; } > 00-clock.txt 2>&1
-ioreg -r -c MtkWlan -l -w0 > mtkwlan.txt 2>&1
+{ ioreg -r -c WTLWireless -l -w0; ioreg -r -c MtkWlan -l -w0; } > mtkwlan.txt 2>&1
 kmutil showloaded 2>&1 | grep -i watchthelight > kexts.txt
 dmesg > dmesg.txt 2>&1
 ifconfig -a > ifconfig.txt 2>&1
@@ -55,7 +55,7 @@ if [ -n "$IF" ]; then
     wait
   fi
   sleep 2
-  ioreg -r -c MtkWlan -l -w0 > mtkwlan-after.txt 2>&1
+  { ioreg -r -c WTLWireless -l -w0; ioreg -r -c MtkWlan -l -w0; } > mtkwlan-after.txt 2>&1
   sync
   echo "  address: ${ADDR:-none}   router: ${GW:-none}"
   [ -f ping.txt ] && echo "  ping: $(grep -E 'packets transmitted' ping.txt)"
@@ -70,8 +70,8 @@ if [ -n "$IF" ]; then
   echo "== MtkW6 counters"
   grep -E '"Mtk(W6[A-Za-z0-9]+|State)" =' mtkwlan-after.txt | sed 's/^[ |]*/  /'
 else
-  echo "== MtkWlan"
-  grep -E '"Mtk[A-Za-z0-9]+" =' mtkwlan.txt | sed 's/^[ |]*/  /' || echo "  (MtkWlan not attached)"
+  echo "== driver"
+  grep -E '"Mtk[A-Za-z0-9]+" =' mtkwlan.txt | sed 's/^[ |]*/  /' || echo "  (driver not attached)"
 fi
 sync
 echo
