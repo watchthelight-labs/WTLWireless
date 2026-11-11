@@ -280,6 +280,20 @@ uint32_t MtkWlan::coreChannels(uint8_t *list, uint32_t max) {
     return n;
 }
 
+// The same list with band and flags (ops v6). No 6 GHz entries: the core does not scan or join there yet.
+uint32_t MtkWlan::coreChannels2(mtk_chan *list, uint32_t max) {
+    uint8_t ch[sizeof(kCh2) + sizeof(kCh2Extra) + sizeof(kCh5)];
+    uint32_t fl[sizeof(ch)], n2, n = domainChannels(ch, fl, &n2);
+    if (n > max) n = max;
+    for (uint32_t i = 0; i < n; i++) {
+        list[i].band = i < n2 ? MTK_CHAN_2G : MTK_CHAN_5G;
+        list[i].bw = MTK_BW_20;
+        list[i].chan = list[i].center = ch[i];
+        list[i].flags = (uint16_t)((fl[i] & CHAN_NO_IR ? MTK_CHAN_F_PASSIVE : 0) | (fl[i] & CHAN_RADAR ? MTK_CHAN_F_DFS : 0));
+    }
+    return n;
+}
+
 // The channels of the current country: 2.4 GHz first (*n2 of them), flags (CHAN_*) per channel when asked
 uint32_t MtkWlan::domainChannels(uint8_t *ch, uint32_t *flags, uint32_t *n2) {
     bool fcc = fccCountry(country);

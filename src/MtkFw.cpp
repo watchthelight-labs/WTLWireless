@@ -314,6 +314,7 @@ int MtkWlan::loadRam() {
     ver[10] = '-';
     memcpy(ver + 11, hdr + 17, 15);
     setProperty("MtkFwVersion", ver);
+    strlcpy(fwVersion, ver, sizeof(fwVersion));
 
     uint32_t offset = 0, override = 0;
     for (uint32_t i = 0; i < nRegion; i++) {

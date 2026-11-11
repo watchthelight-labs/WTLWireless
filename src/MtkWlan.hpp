@@ -202,6 +202,7 @@ private:
     int powerStage(bool afterDomain);
     int domainStage();
     uint32_t domainChannels(uint8_t *ch, uint32_t *flags, uint32_t *n2);
+    uint32_t coreChannels2(mtk_chan *list, uint32_t max);
     char country[3] = "US", countryWanted[3] = "US";   // 0.12.1: set_country, applied by the tick when no join runs
     bool countryPending = false;
     void countryService();
@@ -221,6 +222,12 @@ private:
     static const mtk_core_ops_v3 kOpsV3;
     static const mtk_core_ops_v4 kOpsV4;
     static const mtk_core_ops_v5 kOpsV5;
+    static const mtk_core_ops_v6 kOpsV6;
+    static int opGetChipInfo(void *core, mtk_chip_info *out);
+    static int opGetChannels2(void *core, mtk_chan *list, uint32_t max, uint32_t *count);
+    static int opGetLinkChan(void *core, mtk_chan *out);
+    char fwVersion[32] = {};
+    uint16_t pciDevice = 0;
     static int opSetMac(void *core, const uint8_t mac[6]);
     static int opGetRateInfo(void *core, mtk_rate_info *out);
     static int opSetCountry(void *core, const char alpha2[2]);

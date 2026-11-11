@@ -714,8 +714,24 @@ const mtk_core_ops_v5 MtkWlan::kOpsV5 = {
     &MtkWlan::opGetRateInfo, &MtkWlan::opSetCountry,
 };
 
+const mtk_core_ops_v6 MtkWlan::kOpsV6 = {
+    {{{{{MTK_CORE_API_V6, sizeof(mtk_core_ops_v6), &MtkWlan::opSetCallbacks, &MtkWlan::opTx, &MtkWlan::opSetEnabled,
+         &MtkWlan::opGetMac, &MtkWlan::opGetLinkInfo},
+        &MtkWlan::opScan, &MtkWlan::opResults, &MtkWlan::opJoin, &MtkWlan::opDisconnect, &MtkWlan::opStatus},
+       &MtkWlan::opSetMode, &MtkWlan::opGetBss, &MtkWlan::opGetChannels, &MtkWlan::opTxBytes},
+      &MtkWlan::opSetMac},
+     &MtkWlan::opGetRateInfo, &MtkWlan::opSetCountry},
+    &MtkWlan::opGetChipInfo, &MtkWlan::opGetChannels2, &MtkWlan::opGetLinkChan,
+};
+
 IOReturn MtkWlan::callPlatformFunction(const OSSymbol *functionName, bool waitForFunction, void *param1, void *param2,
                                        void *param3, void *param4) {
+    if (functionName && functionName->isEqualTo(MTK_CORE_OPS_V6)) {
+        if (!param1 || !param2) return kIOReturnBadArgument;
+        *(const mtk_core_ops_v6 **)param1 = &kOpsV6;
+        *(void **)param2 = this;
+        return kIOReturnSuccess;
+    }
     if (functionName && functionName->isEqualTo(MTK_CORE_OPS_V1)) {
         if (!param1 || !param2) return kIOReturnBadArgument;
         *(const mtk_core_ops **)param1 = &kOps;
@@ -826,6 +842,52 @@ int MtkWlan::opGetChannels(void *core, uint8_t *list, uint32_t max, uint32_t *co
     *count = static_cast<MtkWlan *>(core)->coreChannels(list, max);
     return 0;
 }
+int MtkWlan::opGetChannels2(void *core, mtk_chan *list, uint32_t max, uint32_t *count) {
+    if (!list || !count) return -1;
+    *count = static_cast<MtkWlan *>(core)->coreChannels2(list, max);
+    return 0;
+}
+
+static_assert((int)MTK_CAP_2G == MTK_BAND_2G && (int)MTK_CAP_5G == MTK_BAND_5G && (int)MTK_CAP_6G == MTK_BAND_6G, "band bits");
+
+// What the chip can do (its MtkChip row) next to what this driver does with it today
+int MtkWlan::opGetChipInfo(void *core, mtk_chip_info *out) {
+    MtkWlan *self = static_cast<MtkWlan *>(core);
+    if (!out || out->size < 8 || !self->chip) return -1;
+    const MtkChip *c = self->chip;
+    mtk_chip_info r;
+    bzero(&r, sizeof(r));
+    r.chip_id = c->id;
+    r.pci_device = self->pciDevice;
+    strlcpy(r.name, c->name, sizeof(r.name));
+    strlcpy(r.fw_version, self->fwVersion, sizeof(r.fw_version));
+    r.hw_bands = c->bands;
+    r.hw_nss = c->nss;
+    r.hw_max_bw = c->maxBw;
+    r.hw_he = c->he;
+    r.hw_eht = c->eht;
+    r.bands = c->bands & (MTK_CAP_2G | MTK_CAP_5G);                   // 6 GHz needs SAE
+    r.nss = c->nss < 2 ? c->nss : 2;                                  // the rate tables stop at two streams
+    r.max_bw = c->maxBw < MTK_BW_80 ? c->maxBw : (uint8_t)MTK_BW_80;  // joinChannel uses 160 as 80
+    uint32_t n = out->size < sizeof(r) ? out->size : (uint32_t)sizeof(r);
+    r.size = n;
+    memcpy(out, &r, n);
+    return 0;
+}
+
+int MtkWlan::opGetLinkChan(void *core, mtk_chan *out) {
+    MtkWlan *self = static_cast<MtkWlan *>(core);
+    if (!out) return -1;
+    bzero(out, sizeof(*out));
+    if (!self->linkUp) return -2;
+    out->band = self->tgtCh > 14 ? MTK_CHAN_5G : MTK_CHAN_2G;         // no 6 GHz joins yet
+    out->bw = self->htActive ? self->chBw : 0;
+    out->chan = self->tgtCh;
+    out->center = out->bw ? self->chCenter : self->tgtCh;
+    if (out->band == MTK_CHAN_5G && self->tgtCh >= 52 && self->tgtCh <= 144) out->flags = MTK_CHAN_F_DFS;
+    return 0;
+}
+
 int MtkWlan::opTxBytes(void *core, const uint8_t *frame, uint32_t len) {
     return static_cast<MtkWlan *>(core)->txEthernetBytes(frame, len);
 }

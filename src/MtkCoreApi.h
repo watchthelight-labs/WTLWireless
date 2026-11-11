@@ -211,6 +211,53 @@ struct mtk_core_ops_v5 {
     int (*set_country)(void *core, const char alpha2[2]);
 };
 
+// ---- version 6 (0.13.0): chip facts and channels with a band ---------------------------------------------------------
+// MTK_CORE_OPS_V6 returns a struct mtk_core_ops_v6 whose first member is the v5 table (version 6 in it). Callbacks are
+// unchanged. A front end built for one chip reads here what it used to assume (name, streams, bands, width).
+#define MTK_CORE_OPS_V6      "mtk-core-ops-v6"
+#define MTK_CORE_API_V6      6
+
+enum { MTK_CHAN_2G = 0, MTK_CHAN_5G = 1, MTK_CHAN_6G = 2 };            // mtk_chan.band
+enum { MTK_CHAN_F_PASSIVE = 1u << 0, MTK_CHAN_F_DFS = 1u << 1 };       // mtk_chan.flags
+enum { MTK_BW_20 = 0, MTK_BW_40 = 1, MTK_BW_80 = 2, MTK_BW_160 = 3 };  // mtk_chan.bw, mtk_chip_info widths
+enum { MTK_CAP_2G = 1u << 0, MTK_CAP_5G = 1u << 1, MTK_CAP_6G = 1u << 2 };   // mtk_chip_info band bits
+
+// One channel. The number alone stops being enough with 6 GHz, where channels 1 to 233 exist again.
+struct mtk_chan {
+    uint8_t band;               // MTK_CHAN_*
+    uint8_t bw;                 // MTK_BW_*
+    uint16_t chan;              // primary 20 MHz channel
+    uint16_t center;            // centre channel of the width (the primary at 20 MHz)
+    uint16_t flags;             // MTK_CHAN_F_*
+};
+
+// The chip, and what this driver version does with it. hw_* is the silicon; the plain fields are what a front end
+// may advertise today (6 GHz needs WPA3-SAE, joins are capped at 80 MHz, HE and EHT are not negotiated yet).
+struct mtk_chip_info {
+    uint32_t size;              // sizeof(struct mtk_chip_info) the caller was built with; the core fills no more
+    uint16_t chip_id;           // 0x7925
+    uint16_t pci_device;
+    char name[16];              // "MT7925"
+    char fw_version[32];        // the RAM firmware's build string
+    uint8_t hw_bands, hw_nss, hw_max_bw, hw_he, hw_eht;
+    uint8_t bands, nss, max_bw, he, eht;
+    uint8_t _pad[2];
+};
+
+struct mtk_core_ops_v6 {
+    struct mtk_core_ops_v5 v5;
+    // Fill *out up to out->size bytes. Any thread: constant after start. 0 on success.
+    int (*get_chip_info)(void *core, struct mtk_chip_info *out);
+    // get_channels with band and flags: the primary channels of the country, bw 20 and center = chan in every entry.
+    // Any thread. *count written.
+    int (*get_channels2)(void *core, struct mtk_chan *list, uint32_t max, uint32_t *count);
+    // The channel of the association (get_link_info's channel, bw and center, with the band). Racy off the gate like
+    // get_link_info. 0 on success, -2 not associated.
+    int (*get_link_chan)(void *core, struct mtk_chan *out);
+    // Scan results keep get_bss: the core scans 2.4 and 5 GHz only, so mtk_bss_info.channel is still unambiguous.
+    // A band there comes with the 6 GHz scan.
+};
+
 #ifdef __cplusplus
 }
 #endif

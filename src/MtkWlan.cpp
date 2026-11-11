@@ -150,6 +150,7 @@ bool MtkWlan::start(IOService *provider) {
 
     uint16_t pciDev = pci->configRead16(kIOPCIConfigDeviceID);
     setNum("MtkPciDevice", pciDev, 16);
+    pciDevice = pciDev;
     setNum("MtkPciSubsystem", pci->configRead16(kIOPCIConfigSubSystemID), 16);
     chip = mtkChipForPci(pciDev);
     if (!chip) {                                // matched by a personality we have no row for: touch nothing
