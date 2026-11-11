@@ -49,7 +49,7 @@ E14F E150 E151`, IMC Networks `13D3:3588 3602 3603 3604`, MediaTek `0E8D:8C38`, 
 card on AM5 desktop boards (ASRock X870 Steel Legend WiFi and others). Tested: `0E8D:8C38` (HP OMEN 16-ap1xxx on MtkBt 0.2.4, reported in [Game-5040/hackintosh-hp-8f06-macos26](https://github.com/Game-5040/hackintosh-hp-8f06-macos26)), `0489:E111` (the Legion 5 15IAX10) and
 `0E8D:0717` (ASRock X870 Steel Legend WiFi, macOS 26.7.1, controller On as THIRD_PARTY_DONGLE), `13D3:3602` (ASUS ROG
 Strix B860-G, macOS 26.7.2, [#4](https://github.com/watchthelight-labs/WTLWireless/issues/4)).
-A Dell Latitude 5421 on macOS 15.8.1 (24H32) with MtkBt 0.2.4 also reports `ready` ([WTLMtkBluetooth #2](https://github.com/watchthelight-labs/WTLMtkBluetooth/issues/2)). The firmware and the
+A Dell Latitude 5421 on macOS 15.8.1 (24H32) with MtkBt 0.2.4 also reports `ready` ([#10](https://github.com/watchthelight-labs/WTLWireless/issues/10)). The firmware and the
 loading protocol are the same for all of them. To see what your card reports:
 
 ```
@@ -147,7 +147,7 @@ Versions before 0.14.0 in this table are those of `MtkBt.kext`.
 | Version | Tested on | Result |
 |---|---|---|
 | 0.14.0 | Legion 5 15IAX10, macOS 26.7.3 developer beta (25G416), OpenCore 1.0.8 | moved into the bundle as `WTLWirelessBt.kext`; same code as 0.2.4. `MtkBtState` = `ready` in 1251 ms, controller on, known devices still listed. Pairing and audio were not repeated for this release |
-| 0.2.4 | Legion 5 15IAX10, macOS 26.7.1 (25G241) and 26.7.2 (25G332), OpenCore 1.0.8 | loaded on the Legion since 2026-10-23; changes since 0.2.0 are for other boards (more USB ids, the AMD RZ717 sleep-protection bypass, a warm-restart fix and a per-boot reset cap, reported in [WTLMtkBluetooth #1](https://github.com/watchthelight-labs/WTLMtkBluetooth/issues/1)) and are not exercised on the Legion's own chip |
+| 0.2.4 | Legion 5 15IAX10, macOS 26.7.1 (25G241) and 26.7.2 (25G332), OpenCore 1.0.8 | loaded on the Legion since 2026-10-23; changes since 0.2.0 are for other boards (more USB ids, the AMD RZ717 sleep-protection bypass, a warm-restart fix and a per-boot reset cap, reported in [#9](https://github.com/watchthelight-labs/WTLWireless/issues/9)) and are not exercised on the Legion's own chip |
 | 0.2.0 | Legion 5 15IAX10, macOS 26.7.1 (25G241), OpenCore 1.0.8, BlueToolFixup 2.7.2 | controller on at every boot since 2026-10-16; AirPods Pro pair, connect and play; `MtkBtState` = `ready`, 3 sections and 447,872 bytes sent, about 20 s from open to close on the current boot |
 | 0.1.0 | same laptop, macOS 15.8.1 (24H32) | first version that brought the controller up on cold boots |
 
@@ -159,7 +159,7 @@ The MT7925 has two things `bluetoothd` on macOS Tahoe does not expect (an LE con
 
 - The Wi-Fi menu part runs on the macOS builds it was built against (26.7.1 to 26.7.3 and the 26.7.3 developer beta 25G416). On any other build macOS sees an Ethernet card and you pick networks with the `mtkwifi` command line tool: no Wi-Fi icon and no Wi-Fi pane in System Settings until a release for that build is out.
 - On a macOS build the Wi-Fi menu part does not cover (26.0 to 26.6, Sequoia), xiaoyizpast's [WiFi Menu](https://github.com/xiaoyizpast/Hackintosh-OMEN-8f06/tree/main/wifi-menu) puts `mtkwifi` behind a menu bar icon: scan, join, disconnect ([#7](https://github.com/watchthelight-labs/WTLWireless/issues/7)). It is a third-party app (MIT), tested by its author on macOS 26.0; I have not reviewed it.
-- With the Wi-Fi menu: no AirDrop, Sidecar or Continuity Camera (there is no AWDL interface, [WTLWifiMenu #2](https://github.com/watchthelight-labs/WTLWifiMenu/issues/2)). The captive-portal flow is macOS's own: on a portal network the Captive Network Assistant opens and the interface is ranked "Never" until you log in, as on a real Mac.
+- With the Wi-Fi menu: no AirDrop, Sidecar or Continuity Camera (there is no AWDL interface, [#8](https://github.com/watchthelight-labs/WTLWireless/issues/8)). The captive-portal flow is macOS's own: on a portal network the Captive Network Assistant opens and the interface is ranked "Never" until you log in, as on a real Mac.
 - It can't join WPA3-SAE only, WPA2 with PSK-SHA256 only, networks that require management frame protection, WPA (TKIP pairwise) or enterprise (802.1X) networks. `mtkwifi list` marks these.
 - No roaming between access points of one network. No HE (802.11ax) or EHT; the association is VHT at 80 MHz.
 - No sleep and wake handling, for Wi-Fi or Bluetooth. The laptop this runs on has sleep disabled. At power off and restart the Bluetooth loader turns the function off so the next boot starts clean.
@@ -451,7 +451,7 @@ Wi-Fi menu part:
   no code from it is in this repository.
 - [mt7925-macos-wifi](https://github.com/thanhnndev/mt7925-macos-wifi) (BSD-3-Clause-Clear, thanhnndev): the itlmt7925
   driver split out of ga403wm-hackintosh, with per-build ABI folders like ours and AWDL work in progress that we follow
-  for [WTLWifiMenu #2](https://github.com/watchthelight-labs/WTLWifiMenu/issues/2); no code from it is in this
+  for [#8](https://github.com/watchthelight-labs/WTLWireless/issues/8); no code from it is in this
   repository.
 - [AirportRTW89-MT7922](https://github.com/DGBooth/AirportRTW89-MT7922) (GPL-2.0, DGBooth): MT7922 as a native AirPort
   device on Tahoe through OCLP's legacy IO80211 stack, the other route to the Wi-Fi menu; no code from it is in this
@@ -462,10 +462,10 @@ Wi-Fi menu part:
   wifip2pd registration contract and what the kernel peer manager needs from a driver; since 2026-10-30 its layer
   creates `awdl0` and gets the peer manager through configure and enableAWDL on 25G241, with no peer in the air yet)
   are read as references for
-  [WTLWifiMenu #2](https://github.com/watchthelight-labs/WTLWifiMenu/issues/2); no code from it is in this repository.
+  [#8](https://github.com/watchthelight-labs/WTLWireless/issues/8); no code from it is in this repository.
 - [owly](https://github.com/t4t5/owly) (MIT, t4t5): AirDrop and AWDL for non-Apple Wi-Fi cards on Linux. It lists the
   MT7925 as working in shared mode and ships iOS 26 captures taken on an `mt7925e`, plus a protocol spec
-  (`docs/SPEC.md`); read as a reference for what the radio has to send for [WTLWifiMenu #2](https://github.com/watchthelight-labs/WTLWifiMenu/issues/2);
+  (`docs/SPEC.md`); read as a reference for what the radio has to send for [#8](https://github.com/watchthelight-labs/WTLWireless/issues/8);
   no code from it is in this repository.
 - [AirPort-RTW](https://github.com/JoMei9019-real/AirPort-RTW) (GPL-2.0, JoMei9019-real): Realtek PCIe cards as native
   AirPort devices on Tahoe through the same OCLP legacy stack. Its 1.1.0 adds 802.11k/v roaming and an AWDL transmit
