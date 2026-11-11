@@ -6,6 +6,17 @@
 - `tools/bundle/make-bundle.sh` downloads from the renamed repos.
 - `mtkwifi add` no longer fails with `mkdir ... No such file or directory` on a machine that has no `/Library/Application Support/legion` folder yet. The tool now creates that folder before its own ([#6](https://github.com/watchthelight-labs/WTLMtkWireless/issues/6)). The bundle `mt7925-wifi-bundle-0.12.1+0.4.16.zip` has the fixed tool in its Recovery folder; with an older one, run `sudo mkdir -p "/Library/Application Support/legion"` once.
 
+## 0.12.2 (2026-11-10)
+
+No change in what the driver does to an MT7925. This release prepares the code for other MT792x chips.
+
+- Chip table (`src/MtkChip.h`, `src/MtkChip.cpp`). What differs between MT792x chips is now data: PCI IDs, the fixed register map, the firmware blobs, the WFSYS reset register, the RX ring numbers with their interrupt bits, the prefetch table and the capabilities. The table has one row, MT7925. A second chip is a second row plus the code paths only that chip needs.
+- The driver picks its row from the PCI device ID before the first register access. A card that has no row is not mapped and not touched; the node shows `MtkChipUnsupported`. A chip ID register that does not match the row gets firmware ownership back and the driver stops there.
+- New registry properties for reports: `MtkPciDevice`, `MtkPciSubsystem`, `MtkChipName`, `MtkChipBands` (bit 0 2.4 GHz, bit 1 5 GHz, bit 2 6 GHz), `MtkChipNss`, `MtkChipMaxBw`.
+- `MtkFrontEnd` now shows the front end that was asked for after the `mtkfe=` boot-arg. Before, it kept the Info.plist default (`ethernet`) even when the native front end ran, which read as if the Wi-Fi menu were off ([#6](https://github.com/watchthelight-labs/WTLMtkWireless/issues/6)). `MtkFrontEndActive` is still the one that says what runs.
+- `tools/build-mac.sh`: `NO_KMUTIL=1` skips the read of the installed kernel collections.
+- How it was checked: a host harness ran the bring-up, a scan, a join, a country change, a reload and the shutdown path against a simulated MT7925 and recorded every register access and firmware command, 3589 events. The record is the same before and after the change. Then one boot on the Legion (macOS 26.7.3 developer beta, 25G416, with MtkWlanNative 0.4.16): joined at boot, 5 GHz, 80 MHz, MCS 9, 2 streams, 866 Mbit/s, as with 0.12.1.
+
 ## 0.12.1 (2026-10-23)
 
 - Core API version 5 for the native front end ([WTLWifiMenu](https://github.com/watchthelight-labs/WTLWifiMenu) 0.4.13):
