@@ -1,0 +1,5 @@
+# kcabi
+
+Tools that read a macOS kernel collection: `dump.py` writes class sizes, vtables, method lists, the apple80211 ioctl dispatch tables and the WCL bulletin-board subscriber tables for one build; `genhdr.py gen` turns a dump into the C++ headers and the request-slot stub file this kext builds against, and `genhdr.py check-native` checks that every override of a class sits on Apple's slot; `linkcheck.py` checks a built kext's undefined symbols against the collection; `disasm.py` disassembles one function with symbol and string notes; `compare.py` diffs two dumps. Python 3.9, no dependencies; `disasm.py` needs llvm-objdump.
+
+`refresh.py` is the script the author's machine runs after a macOS update: dump the new build, compare it with the last verified one, rebuild. It expects the folders of the private notebook repository this driver is developed in (the dumps of every verified build are kept there), so read it as a description of the procedure. The same tools with a config file in place of fixed paths are in [WTLKcAbi](https://github.com/watchthelight-labs/WTLKcAbi).
