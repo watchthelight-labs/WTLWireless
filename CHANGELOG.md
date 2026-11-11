@@ -6,6 +6,16 @@
 - `tools/bundle/make-bundle.sh` downloads from the renamed repos.
 - `mtkwifi add` no longer fails with `mkdir ... No such file or directory` on a machine that has no `/Library/Application Support/legion` folder yet. The tool now creates that folder before its own ([#6](https://github.com/watchthelight-labs/WTLMtkWireless/issues/6)). The bundle `mt7925-wifi-bundle-0.12.1+0.4.16.zip` has the fixed tool in its Recovery folder; with an older one, run `sudo mkdir -p "/Library/Application Support/legion"` once.
 
+## 0.13.0 (2026-11-10)
+
+Core API version 6: the driver tells a front end what the chip is. Nothing changes in bring-up, scan, join or the data path, and versions 1 to 5 of the API are untouched, so MtkWlanNative 0.4.16 keeps working.
+
+- `get_chip_info` (`src/MtkCoreApi.h`): chip name, chip ID, PCI device ID, firmware build string, and two sets of capabilities. `hw_*` is what the silicon can do. The plain fields are what this driver version uses: no 6 GHz (it needs WPA3-SAE), two streams, 80 MHz at most, no HE or EHT yet.
+- `get_channels2`: the country's channels as `mtk_chan` entries with a band and passive / DFS flags. A channel number alone stops being enough once 6 GHz is on, where 1 to 233 exist again.
+- `get_link_chan`: the channel of the association with its band, width and centre.
+- Scan results keep `get_bss` and a plain channel number. The driver scans 2.4 and 5 GHz only; a band there comes with the 6 GHz scan.
+- How it was checked: the host harness records the same 3589 register accesses and firmware commands as for 0.12.2, and it now runs the new calls next to the old ones while joined (36 channels, all agree). Then one boot on the Legion (macOS 26.7.3 developer beta, 25G416) with MtkWlanNative 0.4.17, which uses version 6: joined at boot, same channel list, 5 GHz, 80 MHz, MCS 9, 2 streams, 866 Mbit/s.
+
 ## 0.12.2 (2026-11-10)
 
 No change in what the driver does to an MT7925. This release prepares the code for other MT792x chips.
