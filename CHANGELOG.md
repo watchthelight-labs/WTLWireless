@@ -6,6 +6,11 @@
 - `tools/bundle/make-bundle.sh` downloads from the renamed repos.
 - `mtkwifi add` no longer fails with `mkdir ... No such file or directory` on a machine that has no `/Library/Application Support/legion` folder yet. The tool now creates that folder before its own ([#6](https://github.com/watchthelight-labs/WTLMtkWireless/issues/6)). The bundle `mt7925-wifi-bundle-0.12.1+0.4.16.zip` has the fixed tool in its Recovery folder; with an older one, run `sudo mkdir -p "/Library/Application Support/legion"` once.
 
+## Unreleased
+
+- `tests/hwtrace/`: the host harness behind the "same register accesses" checks of 0.12.2 and 0.13.0 is in the repo. `run.sh`, `compare.sh <tag>` and `selftest.sh`; no kernel, no sudo, no network.
+- README: the Legion joins a WPA2 Personal network itself now, so the note that only a tester had done so is gone.
+
 ## 0.13.0 (2026-11-10)
 
 Core API version 6: the driver tells a front end what the chip is. Nothing changes in bring-up, scan, join or the data path, and versions 1 to 5 of the API are untouched, so MtkWlanNative 0.4.16 keeps working.

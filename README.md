@@ -48,7 +48,7 @@ Both projects are good work and they cover cards this one does not. The table is
 | macOS | Sequoia 15 and Tahoe 26 for the driver; the native menu on Tahoe 26.7.1 (25G241), 26.7.2 (25G332), 26.7.3 (25G342) and the 26.7.3 developer beta 25G416 | "tested in the macOS 15 installer" | macOS 15.2 to 15.x; the Arxusion line (v1.5.1) says Tahoe 26 |
 | Measured | 190.8 / 174.8 Mb/s, 16 ms idle ping (0.9.0, Ethernet front end); native front end holds the link, auto-joins at boot | not stated on the page | 83 / 44 Mb/s on a G713PV |
 | 802.11 | HT/VHT at 80 MHz; no ax yet | n/ac/ax, 40/80 MHz | as SimpleMtkWlan |
-| WPA2-PSK | code passes the host tests; joined on air by a tester on an RZ717 board (not by me, only an open network here) | yes | yes |
+| WPA2-PSK | code passes the host tests; joined on air on the Legion (WPA2 Personal, from the Wi-Fi menu, at boot) and by a tester on an RZ717 board | yes | yes |
 | Licence | ISC (plus Clear BSD parts) | GPLv2 | GPLv2 |
 
 On an MT7925 use this driver; with the native front end it behaves like Apple's own Wi-Fi. On an MT7921 or MT7922 use
@@ -71,7 +71,7 @@ Everything below was measured on one laptop (Legion 5 15IAX10, OpenCore 1.0.8) o
 | 0.6.0 | HT/VHT association, firmware rate control | macOS 15.4.1 Recovery | 47.4 / 9.2 Mb/s |
 | 0.5.0 | first join, Ethernet interface, DHCP | macOS 15.4.1 Recovery | Safari and an Ookla speedtest: 19.4 / 9.6 Mb/s |
 
-**WPA2 on air:** the WPA2-PSK code passes the host tests in `tests/` (standard test vectors plus simulated handshakes, every derived value checked against an independent Python oracle). I have not joined a WPA2 network on the Legion myself, because the only network where I live is an open one. A tester joined a WPA/WPA2 Personal network from the Wi-Fi menu on an AM5 desktop with an AMD RZ717 card (MtkWlan 0.12.1 and MtkWlanNative 0.4.13), with auto-join at boot and a DHCP lease ([#3](https://github.com/watchthelight-labs/WTLWifiMenu/issues/3)). More reports are welcome.
+**WPA2 on air:** the WPA2-PSK code passes the host tests in `tests/` (standard test vectors plus simulated handshakes, every derived value checked against an independent Python oracle). The Legion joins a WPA2 Personal network from the Wi-Fi menu at boot since 2026-11-10 (three boots in a row, 0.12.1 to 0.13.0): the handshake counters show messages 1 to 4 once each and no bad MIC, and the link is 5 GHz, 80 MHz, 866 Mbit/s. Before that I only had an open network, and the first join on air was a tester's, who joined a WPA/WPA2 Personal network from the Wi-Fi menu on an AM5 desktop with an AMD RZ717 card (MtkWlan 0.12.1 and MtkWlanNative 0.4.13), with auto-join at boot and a DHCP lease ([#3](https://github.com/watchthelight-labs/WTLWifiMenu/issues/3)). More reports are welcome.
 
 ## What it can't do
 
@@ -193,6 +193,7 @@ On macOS, with the Xcode Command Line Tools:
 ```
 tools/build-mac.sh      # out/MtkWlan.kext, prints the sha256
 bash tests/run.sh       # host tests for the WPA2 code
+tests/hwtrace/run.sh     # runs the bring-up against a fake MT7925 and records what the driver does to it
 ```
 
 On Linux (Ubuntu 24.04, also fine in WSL), no Mac needed:
@@ -222,6 +223,7 @@ The driver claims the card from its firmware, sets up the WFDMA rings, downloads
 | `src/MtkUserClient.cpp`, `MtkUserApi.h` | the IOUserClient the tool talks to |
 | `tools/mtkwifi/` | the command line tool and its autojoin daemon |
 | `tests/` | host tests and the Python oracle for the WPA2 code |
+| `tests/hwtrace/` | host harness: the real driver sources against a fake MT7925; `compare.sh <tag>` shows whether a change alters any register access or firmware command |
 
 ## Credits
 
