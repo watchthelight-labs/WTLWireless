@@ -1,6 +1,6 @@
 # Contributing
 
-The most useful thing right now is a report from another machine with an MT7925, and a report from anyone who joins a WPA2 network with it. Open an issue with the laptop model, the macOS build, the OpenCore version, the kext version, `mtkwifi status --json`, and `ioreg -r -c MtkWlan -l -w0` (it holds counters, never keys).
+The most useful thing right now is a report from another machine with an MT7925, and a report from anyone who joins a WPA2 network with it. Open an issue with the laptop model, the macOS build, the OpenCore version, the kext version, `mtkwifi status --json`, and `ioreg -r -c WTLWireless -l -w0` (it holds counters, never keys).
 
 Pull requests: keep them small and say how you tested them, on which network type. I read and test every PR before merging. AI-assisted PRs are fine as long as you can explain the change, which is the same bar I hold my own code to.
 

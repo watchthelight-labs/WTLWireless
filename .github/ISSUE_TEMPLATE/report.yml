@@ -4,34 +4,48 @@ body:
   - type: input
     id: machine
     attributes:
-      label: Laptop model
-      placeholder: Legion 5 15IAX10 (83F0)
+      label: Laptop or board model, and the card (PCI ID if you know it)
+      placeholder: Legion 5 15IAX10 (83F0), MT7925 14c3:7925
     validations:
       required: true
   - type: input
     id: versions
     attributes:
-      label: macOS build, OpenCore version, MtkWlan version
-      placeholder: 26.7.1 (25G241), OpenCore 1.0.8, MtkWlan 0.9.0
+      label: macOS build, OpenCore version, WTLWireless version
+      placeholder: 26.7.3 (25G416), OpenCore 1.0.8, WTLWireless 0.14.0
+    validations:
+      required: true
+  - type: dropdown
+    id: part
+    attributes:
+      label: Which part
+      options:
+        - Wi-Fi (no network, drops, speed)
+        - Wi-Fi menu (the native front end)
+        - Bluetooth
+        - Something else
     validations:
       required: true
   - type: input
     id: network
     attributes:
-      label: Network type
+      label: Network type (Wi-Fi reports)
       placeholder: open 5 GHz / WPA2-PSK 2.4 GHz / WPA3 ...
-    validations:
-      required: true
   - type: textarea
     id: status
     attributes:
-      label: Output of mtkwifi status --json
+      label: Output of mtkwifi status --json (Wi-Fi reports)
       render: json
   - type: textarea
     id: ioreg
     attributes:
-      label: Output of ioreg -r -c MtkWlan -l -w0
-      description: Counters and state only; the driver never publishes keys.
+      label: Output of ioreg -r -c WTLWireless -l -w0 (Wi-Fi) or ioreg -rc WTLWirelessBt -l | grep MtkBt (Bluetooth)
+      description: Counters and state only; the driver never publishes keys. tools/mtk-report.sh collects all of it in one archive.
+      render: text
+  - type: textarea
+    id: profiler
+    attributes:
+      label: Bluetooth reports, first 20 lines of system_profiler SPBluetoothDataType (remove addresses if you like)
       render: text
   - type: textarea
     id: what
