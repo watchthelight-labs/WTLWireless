@@ -13,6 +13,11 @@ void hw_unexpected(const char *what);
 void hw_property(const char *key, const std::string &val);
 extern uint16_t g_hw_pci_device;       // PCI device ID the fake card reports (--pcidev)
 extern bool g_hw_old_set;              // the older MtkWlan class is in the kernel too (--oldset)
+extern uint16_t g_hw_chip;             // the silicon behind the fake card: 0x7925, or 0x7927 (--chip)
+extern int g_hw_chipid_raw;            // CHIPID word the card reports, -1 = the chip's own (--chipid)
+extern int g_hw_lnkctl;                // PCIe Link Control of the fake card, -1 = no PCIe capability (--lnkctl)
+void hw_set_bootarg(const char *kv);
+bool hw_bootarg(const char *key, uint32_t *val);   // boot-args given with --bootarg key=value
 uint8_t *hw_dma_alloc(uint32_t size, uint32_t align, uint32_t *iova);
 uint8_t *hw_dma_host(uint32_t iova);
 uint8_t *hw_bar();
@@ -185,11 +190,12 @@ public:
         case kIOPCIConfigCommand: return (uint16_t)hw_pci_cmd(0, 0);
         case kIOPCIConfigVendorID: return 0x14c3;
         case kIOPCIConfigDeviceID: return g_hw_pci_device;
+        case 0x90: return g_hw_lnkctl >= 0 ? (uint16_t)g_hw_lnkctl : 0;     // PCIe capability at 0x80, Link Control
         default: return 0;
         }
     }
     uint32_t configRead32(uint32_t) { return 0; }
-    void configWrite16(uint32_t off, uint16_t v) { hw_trace("PCI cfgw16 0x%02x 0x%04x", off, v); }
+    void configWrite16(uint32_t off, uint16_t v) { hw_trace("PCI cfgw16 0x%02x 0x%04x", off, v); if (off == 0x90) g_hw_lnkctl = v; }
     void setMemoryEnable(bool on) { hw_pci_cmd(on ? 2 : 0, on ? 0 : 2); hw_trace("PCI memory %d", on); }
     void setBusMasterEnable(bool on) { hw_pci_cmd(on ? 4 : 0, on ? 0 : 4); hw_trace("PCI busmaster %d", on); }
     IOMemoryMap *mapDeviceMemoryWithRegister(uint8_t) { return new IOMemoryMap; }
@@ -198,7 +204,7 @@ public:
     IOReturn unregisterInterrupt(int i) { hw_trace("PCI irq unregister %d", i); return kIOReturnSuccess; }
     IOReturn enableInterrupt(int i) { hw_trace("PCI irq enable %d", i); return kIOReturnSuccess; }
     IOReturn disableInterrupt(int i) { hw_trace("PCI irq disable %d", i); return kIOReturnSuccess; }
-    bool findPCICapability(uint32_t, uint8_t *off) { if (off) *off = 0; return false; }
+    bool findPCICapability(uint32_t, uint8_t *off) { if (off) *off = g_hw_lnkctl >= 0 ? 0x80 : 0; return g_hw_lnkctl >= 0; }
     void saveDeviceState() { hw_unexpected("saveDeviceState"); }
     void restoreDeviceState() { hw_unexpected("restoreDeviceState"); }
 };
@@ -247,7 +253,12 @@ void IOSleep(unsigned ms);
 void IODelay(unsigned us);
 inline void clock_get_uptime(uint64_t *t) { *t = hw_uptime(); }
 inline void absolutetime_to_nanoseconds(uint64_t a, uint64_t *ns) { *ns = a; }
-inline bool PE_parse_boot_argn(const char *, void *, int) { return false; }
+inline bool PE_parse_boot_argn(const char *k, void *out, int n) {
+    uint32_t v;
+    if (n != 4 || !hw_bootarg(k, &v)) return false;
+    memcpy(out, &v, 4);
+    return true;
+}
 // the machine boots with mtkfe=native
 inline bool PE_parse_boot_arg_str(const char *k, char *out, int n) {
     if (strcmp(k, "mtkfe")) return false;

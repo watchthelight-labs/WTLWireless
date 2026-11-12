@@ -142,7 +142,8 @@ int WTLWireless::bssInfo(bool enable) {
     m.b[0] = BSS_IDX;
     uint8_t *b = m.tlv(0, 32);                  // UNI_BSS_INFO_BASIC
     b[4] = 1;                                   // active
-    b[7] = 0xff;                                // band_idx
+    // band_idx: 0xff, MT7927 takes the band of the channel (mt7927_band_idx: 2.4 GHz 0, 5 and 6 GHz 1)
+    b[7] = (chip->quirks & MTK_Q_BAND_IDX) ? (tgtCh > 14 ? 1 : 0) : 0xff;
     put32(b + 8, 0x10001);                      // CONNECTION_INFRA_STA
     b[12] = enable ? 0 : 1;                     // conn_state
     memcpy(b + 14, tgtBssid, 6);

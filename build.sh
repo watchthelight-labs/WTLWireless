@@ -70,7 +70,7 @@ link() {
 echo "=== core"
 # one source list for this build and the Linux one: the SRCS lines of the Makefile
 SRCS=$(awk '/^SRCS *:=/{sub(/^SRCS *:= */,""); s=$0; while (s ~ /\\$/) {sub(/\\$/,"",s); getline; s=s $0}; print s}' Makefile)
-# Wi-Fi firmware from firmware/mt7925, checked against its SHA256SUMS
+# Wi-Fi firmware from firmware/mt7925 and firmware/mt7927, checked against their SHA256SUMS
 python3 -I tools/gen_firmware.py out/gen/MtkFirmware.c
 OBJS=""
 for s in $SRCS; do

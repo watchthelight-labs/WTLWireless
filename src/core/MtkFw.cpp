@@ -1,7 +1,7 @@
 // <wtl> project: wtlwireless | file: src/core/MtkFw.cpp | author: watchthelight </wtl>
-// SPDX-License-Identifier: ISC
+// SPDX-License-Identifier: ISC AND BSD-3-Clause-Clear
 // W2 (WFDMA rings, interrupts) and W3 (patch + RAM firmware download, N9 ready).
-// Ported from Linux mt76 v6.18 (Copyright (C) 2023 MediaTek Inc., ISC):
+// Ported from Linux mt76 v6.18 (Copyright (C) 2023 MediaTek Inc., ISC); MT7927 paths: master 79eb6679ef6a (Clear BSD):
 //   mt7925/pci.c mt7925_pci_probe + mt7925_dma_init, mt792x_dma.c dma_disable/dma_enable/
 //   dma_prefetch/wfsys_reset, dma.c queue reset/add_buf/kick, mt7925/pci_mcu.c mcu_init,
 //   mt7925/mcu.c fill_message/parse_response, mt76_connac_mcu.c load_patch/load_ram helpers.
@@ -38,6 +38,7 @@ constexpr uint32_t GLO_TX_DMA_EN = 1u << 0, GLO_TX_DMA_BUSY = 1u << 1, GLO_RX_DM
                    GLO_RX_DMA_BUSY = 1u << 3, GLO_TX_WB_DDONE = 1u << 6, GLO_FIFO_DIS_CHECK = 1u << 11,
                    GLO_FIFO_LITTLE_ENDIAN = 1u << 12, GLO_RX_WB_DDONE = 1u << 13,
                    GLO_CSR_DISP_BASE_PTR_CHAIN_EN = 1u << 15, GLO_OMIT_RX_INFO_PFET2 = 1u << 21,
+                   GLO_FW_DWLD_BYPASS_DMASHDL = 1u << 9, GLO_CSR_LBK_RX_Q_SEL_EN = 1u << 20, GLO_ADDR_EXT_EN = 1u << 26,
                    GLO_OMIT_RX_INFO = 1u << 27, GLO_OMIT_TX_INFO = 1u << 28, GLO_CLK_GAT_DIS = 1u << 30;
 constexpr uint32_t GLO_DMA_SIZE_3 = 3u << 4;
 
@@ -348,11 +349,7 @@ int WTLWireless::hwStart() {
     // rest of mt7925_pci_probe after drv_own
     rmw(HW_EMI_CTL, 1u << 1, 1u << 1);                         // SLPPROT_EN
 
-    // mt792x_wfsys_reset: drop the firmware Windows left running
-    rmw(chip->wfsysRst, 1u << 0, 0);
-    IOSleep(50);
-    rmw(chip->wfsysRst, 1u << 0, 1u << 0);
-    bool rstDone = pollMsec(chip->wfsysRst, 1u << 4, 1u << 4, 500, 10);
+    bool rstDone = wfsysReset();                               // drops the firmware Windows left running
     setNum("MtkW2ConnOnMiscAfterReset", rr(CONN_ON_MISC));
     if (!rstDone) { step("W2 fail: wfsys reset"); return -1; }
 
@@ -366,6 +363,10 @@ int WTLWireless::hwStart() {
     if (!pollMsec(WFDMA0_GLO_CFG, GLO_TX_DMA_BUSY | GLO_RX_DMA_BUSY, 0, 100, 1)) {
         step("W2 fail: WFDMA still busy");
         return -2;
+    }
+    if (chip->quirks & MTK_Q_WFDMA_EXT) {                                         // mt792x_dma_disable, MT7927
+        rawWrite(WFDMA0_RST_DTX_PTR, ~0u);
+        rawWrite(WFDMA0_RST_DRX_PTR, ~0u);
     }
     rawWrite(WFDMA0_GLO_CFG_EXT0, rawRead(WFDMA0_GLO_CFG_EXT0) & ~(1u << 6));   // DMASHDL off
     rmw(DMASHDL_SW_CONTROL, 1u << 28, 1u << 28);                                  // DMASHDL bypass
@@ -384,24 +385,31 @@ int WTLWireless::hwStart() {
     if ((e = ring(txFwdl, false, TXQ_FWDL, 32, 4096)))   { setNum("MtkW2RingFail", 300 + e); step("W2 fail: ring alloc"); return -3; }
     if ((e = ring(rxMcu, true, chip->rxqMcu, 128, 2048)))   { setNum("MtkW2RingFail", 400 + e); step("W2 fail: ring alloc"); return -3; }
     if ((e = ring(rxData, true, chip->rxqData, 512, 2048)))   { setNum("MtkW2RingFail", 500 + e); step("W2 fail: ring alloc"); return -3; }
+    if (chip->rxqWa && (e = ring(rxWa, true, chip->rxqWa, 512, 2048))) { setNum("MtkW2RingFail", 600 + e); step("W2 fail: ring alloc"); return -3; }
     setNum("MtkW2RxMcuIova", rxMcu.desc.iova);
     setNum("MtkW2RxMcuPhys", rxMcu.desc.phys, 64);   // equal to the iova: no VT-d translation
 
     // mt792x_dma_enable (mt792x_dma_prefetch)
-    for (uint8_t i = 0; i < chip->nPrefetch; i++)
-        rawWrite(WFDMA0 + chip->prefetch[i].ofs, chip->prefetch[i].val);
+    for (uint8_t i = 0; i < chip->nPrefetch; i++) {
+        const MtkPrefetch &pf = chip->prefetch[i];
+        rawWrite(WFDMA0 + pf.ofs, pf.readBack ? rawRead(WFDMA0 + pf.ofs) : pf.val);
+    }
     rawWrite(WFDMA0_RST_DTX_PTR, ~0u);
-    rawWrite(WFDMA0_RST_DRX_PTR, ~0u);
+    if (!(chip->quirks & MTK_Q_WFDMA_EXT)) rawWrite(WFDMA0_RST_DRX_PTR, ~0u);
     rawWrite(WFDMA0_PRI_DLY_INT_CFG0, 0);
     rawWrite(WFDMA0_GLO_CFG, rawRead(WFDMA0_GLO_CFG) | GLO_TX_WB_DDONE | GLO_FIFO_LITTLE_ENDIAN |
              GLO_CLK_GAT_DIS | GLO_OMIT_TX_INFO | GLO_DMA_SIZE_3 | GLO_FIFO_DIS_CHECK | GLO_RX_WB_DDONE |
              GLO_CSR_DISP_BASE_PTR_CHAIN_EN | GLO_OMIT_RX_INFO_PFET2);
     rawWrite(WFDMA0_GLO_CFG, rawRead(WFDMA0_GLO_CFG) | GLO_TX_DMA_EN | GLO_RX_DMA_EN);
+    if (chip->quirks & MTK_Q_WFDMA_EXT) {                                         // mt7927_wfdma_setup
+        rawWrite(WFDMA0_GLO_CFG, rawRead(WFDMA0_GLO_CFG) | GLO_ADDR_EXT_EN | GLO_FW_DWLD_BYPASS_DMASHDL);
+        rawWrite(WFDMA0_GLO_CFG, rawRead(WFDMA0_GLO_CFG) & ~GLO_CSR_LBK_RX_Q_SEL_EN);
+    }
     rmw(UWFDMA0_GLO_CFG_EXT1, 1u << 28, 1u << 28);
     rawWrite(WFDMA0_INT_RX_PRI, rawRead(WFDMA0_INT_RX_PRI) | 0x0f00);
     rawWrite(WFDMA0_INT_TX_PRI, rawRead(WFDMA0_INT_TX_PRI) | 0x7f00);
     rmw(WFDMA_DUMMY_CR, 1u << 1, 1u << 1);                                       // NEED_REINIT
-    rawWrite(WFDMA0_HOST_INT_ENA, INT_TX_DONE_ALL | chip->irqRxData | chip->irqRxMcu | INT_MCU_CMD);
+    rawWrite(WFDMA0_HOST_INT_ENA, INT_TX_DONE_ALL | chip->irqRxData | chip->irqRxMcu | chip->irqRxWa | INT_MCU_CMD);
     rawWrite(WFDMA0_MCU2HOST_SW_INT_ENA, rawRead(WFDMA0_MCU2HOST_SW_INT_ENA) | 1u << 0);
     setNum("MtkW2GloCfg", rawRead(WFDMA0_GLO_CFG));
     step("W2 pass: WFDMA rings up");
@@ -466,6 +474,46 @@ int WTLWireless::bringUp() {
     return 0;
 }
 
+// mt792x_wfsys_reset: WFSYS_SW_RST_B low, 50 ms, high, wait for bit 4. MT7927 has no such register and resets through
+// CBTOP instead (mt7927_wfsys_reset): semaphore block read through the PCIE2AP window, WF subsystem reset pulse, MCU own,
+// wait for the ROM code to idle, semaphore block read again.
+bool WTLWireless::wfsysReset() {
+    if (const MtkCbtop *c = chip->cbtop) {
+        auto sema = [this, c](uint32_t addr) {
+            uint32_t remap = rr(c->remapReg);
+            wr(c->remapReg, (remap & ~0xffffu) | c->remapVal);
+            IODelay(10);
+            (void)rr(addr);
+            wr(c->remapReg, remap);
+            IODelay(10);
+        };
+        sema(c->semaOwn);
+        rmw(c->rguRst, 1u << 4, 1u << 4);
+        IODelay(1500);
+        rmw(c->rguRst, 1u << 4, 0);
+        IOSleep(7);
+        wr(c->mcuOwnSet, 1u << 0);
+        if (!pollMsec(c->romcode, 0xffff, c->romcodeIdle, 200, 10)) return false;
+        sema(c->semaRep);
+        return true;
+    }
+    rmw(chip->wfsysRst, 1u << 0, 0);
+    IOSleep(50);
+    rmw(chip->wfsysRst, 1u << 0, 1u << 0);
+    return pollMsec(chip->wfsysRst, 1u << 4, 1u << 4, 500, 10);
+}
+
+// MT7927: ASPM L1 makes WFDMA register access unreliable (mt7925_pci_probe). Only this device's Link Control is
+// cleared; the bridge above it is left alone.
+void WTLWireless::aspmOff() {
+    uint8_t cap = 0;
+    if (!pci->findPCICapability(kIOPCIPCIExpressCapability, &cap) || !cap) return;
+    uint16_t lc = pci->configRead16(cap + 0x10);        // Link Control, bits 1:0 are the ASPM control
+    setNum("MtkPcieLinkCtlBefore", lc, 16);
+    if (lc & 0x3) pci->configWrite16(cap + 0x10, (uint16_t)(lc & ~0x3u));
+    setNum("MtkPcieLinkCtlAfter", pci->configRead16(cap + 0x10), 16);
+}
+
 // PCIe function level reset, the last resort when WFSYS reset did not bring the chip back. Config space (BARs, MSI)
 // is saved and restored around it by IOPCIFamily, as for sleep. false when the card does not offer FLR.
 bool WTLWireless::pciFlr() {
@@ -494,7 +542,7 @@ bool WTLWireless::pciFlr() {
 // leaves the firmware running and the DMA rings pointing at freed host memory; the next boot's patch download fails
 // (N-177, "W3 fail: patch download") and the card can drop off the bus until a cold power-off (I-081)
 void WTLWireless::quiesce(const char *why) {
-    if (quiesced || !pci || !mmio) return;
+    if (quiesced || !pci || !mmio || !chipConfirmed) return;
     quiesced = true;
     if (timer) timer->cancelTimeout();
     if (irqIndex >= 0) pci->disableInterrupt(irqIndex);
@@ -503,10 +551,7 @@ void WTLWireless::quiesce(const char *why) {
     int drv = drvOwn();
     rawWrite(WFDMA0_GLO_CFG, rawRead(WFDMA0_GLO_CFG) & ~(GLO_TX_DMA_EN | GLO_RX_DMA_EN));
     bool idle = pollMsec(WFDMA0_GLO_CFG, GLO_TX_DMA_BUSY | GLO_RX_DMA_BUSY, 0, 100, 1);
-    rmw(chip->wfsysRst, 1u << 0, 0);
-    IOSleep(50);
-    rmw(chip->wfsysRst, 1u << 0, 1u << 0);
-    bool rst = pollMsec(chip->wfsysRst, 1u << 4, 1u << 4, 500, 10);
+    bool rst = wfsysReset();
     pci->setBusMasterEnable(false);                               // no DMA into host memory past this point
     IOLog("WTLWireless: quiesced for %s (drv_own %d, dma idle %d, wfsys reset %d)\n", why, drv, idle, rst);
 }

@@ -25,8 +25,13 @@ file is picked up without touching the harness (WTLWirelessEth.cpp and MtkUserCl
 `RING tx 15 base 0x.. cnt 32`, `SLEEP 1ms`, `DELAY 100us`, `PCI ..`, `STEP <driver step text>`, `PHASE ..`,
 `TXDATA` (TX descriptor and frame hashes), `RXMCU` / `RXDATA` (what the model hands back). Device addresses come from a
 fixed bump allocator. No host pointers, no timestamps. `hwtrace <file> --props` adds `PROP` lines (the registry
-properties the driver publishes) for debugging. `--pcidev 7927` makes the fake card report another PCI device ID;
-`run.sh` uses it to check that a card without a chip table row gets no register access at all.
+properties the driver publishes) for debugging. `--pcidev <hex>` makes the fake card report another PCI device ID;
+`run.sh` uses an unlisted one (7961) to check that a card without a chip table row gets no register access at all.
+`--chip 7927` makes the model behave like MT7927 silicon (CBTOP reset, RX rings 6/4/7), `--chipid <hex>` sets the raw CHIPID
+word, `--lnkctl <hex>` gives the card a PCIe capability with that Link Control, `--bootarg k=v` sets a boot-arg.
+`run.sh` checks that MT7927 without `mtk7927=1` is report only with zero register writes, that the opt-in run matches
+`golden-mt7927.txt` (checked by `golden.py`; written from Linux mt76 master, a review aid, not proof on hardware), and
+that the MT7925 trace does not change with `mtk7927=1`.
 `--oldset` pretends the class of the older kext set (`MtkWlan`) is in the kernel too: the core must then publish
 `MtkConflict` on the PCI device and touch nothing. `compare.sh` works across the rename from MtkWlan to WTLWireless (the
 harness takes whichever class the tree under test has); against 0.13.0 the only changed line is the status text that

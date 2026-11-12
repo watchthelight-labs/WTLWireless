@@ -1,0 +1,44 @@
+# <wtl> project: wtlwireless | file: tests/hwtrace/golden-mt7927.txt | author: watchthelight </wtl>
+# What the MT7927 bring-up must do, in this order, written from Linux mt76 master 79eb6679ef6a (mt792x_dma.c, mt7925/pci.c,
+# mt792x_regs.h, mt7925/mt7925.h) with the BAR0 offsets worked out by hand. Not taken from the driver. "*" matches one token.
+# A review aid for the opt-in MT7927 row, not proof: a fake card cannot say whether real silicon agrees.
+# mt7927_wfsys_reset: semaphore block through the PCIE2AP window, WF reset pulse, MCU own, ROM code idle, semaphore again
+R 0x021008 -> *
+W 0x021008 0x00001807
+R 0x040000 -> *
+W 0x021008 0x00000000
+W 0x1f8600 0x00000010
+W 0x1f8600 0x00000000
+W 0x1f5034 0x00000001
+R 0x0c1604 -> 0x00001d1e
+W 0x021008 0x00001807
+R 0x040400 -> *
+W 0x021008 0x00000000
+# mt792x_dma_disable (force) on MT7927: DTX and DRX pointer reset, then DMASHDL off and bypass
+W 0x0d420c 0xffffffff
+W 0x0d4280 0xffffffff
+W 0x0d6004 0x10000000
+# mt7927_dma_layout rings, then RXQ_DATA2 (7)
+RING tx 0 base * cnt *
+RING tx 15 base * cnt *
+RING tx 16 base * cnt *
+RING rx 6 base * cnt *
+RING rx 4 base * cnt *
+RING rx 7 base * cnt *
+# mt7927_dma_prefetch_setup
+W 0x0d7030 *
+W 0x0d70f0 0x00660077
+W 0x0d70f4 0x00001100
+W 0x0d70f8 0x0030004f
+W 0x0d70fc 0x00542200
+W 0x0d4690 0x00000008
+W 0x0d4698 0x00800008
+W 0x0d469c 0x01000004
+W 0x0d4640 0x01400004
+W 0x0d463c 0x01800010
+W 0x0d4600 0x02800004
+# mt792x_dma_enable: DTX reset only, GLO_CFG with bit 26 (address extension) and bit 9 set, bit 20 clear
+W 0x0d420c 0xffffffff
+W 0x0d42f0 0x00000000
+# interrupts: TX done, MCU command, and RX done bits 12, 14, 15 (inside GENMASK(18, 4))
+W 0x0d4204 0x2e07fff0

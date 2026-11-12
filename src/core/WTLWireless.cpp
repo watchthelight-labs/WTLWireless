@@ -1,7 +1,7 @@
 // <wtl> project: wtlwireless | file: src/core/WTLWireless.cpp | author: watchthelight </wtl>
-// SPDX-License-Identifier: ISC
+// SPDX-License-Identifier: ISC AND BSD-3-Clause-Clear
 // W1 bring-up, following mt7925_pci_probe() in Linux mt76 v6.18 (mt7925/pci.c) and the
-// ownership handshakes in mt792x_core.c (Copyright (C) 2023 MediaTek Inc., ISC):
+// ownership handshakes in mt792x_core.c (Copyright (C) 2023 MediaTek Inc., ISC; MT7927: master 79eb6679ef6a, Clear BSD):
 //   memory + bus master on, BAR0 mapped, fw_own then drv_own, read chip ID and revision.
 // Then W2/W3 (MtkFw.cpp): WFSYS reset, WFDMA rings, MSI, patch + RAM firmware download.
 // 0.8.0 (W0): the core is a plain IOService with its own work loop; the Ethernet front end (WTLWirelessEth)
@@ -172,6 +172,21 @@ bool WTLWireless::start(IOService *provider) {
         step("W1 stop: unsupported card, report only");
         return true;
     }
+    if (chip->optInArg) {                       // matched, but runs only when the boot-arg says 1: report only, no register access
+        uint32_t on = 0;
+        PE_parse_boot_argn(chip->optInArg, &on, sizeof(on));
+        setProperty("MtkChipMatched", chip->name);
+        if (on != 1) {
+            char why[96];
+            snprintf(why, sizeof(why), "%s is matched but untested here: boot-arg %s=1 runs it", chip->name, chip->optInArg);
+            setProperty("MtkChipUnsupported", why);
+            step("W1 stop: opt-in chip without its boot-arg, report only");
+            chip = nullptr;
+            return true;
+        }
+        setProperty("MtkChipOptIn", true);
+    }
+    if (chip->quirks & MTK_Q_ASPM_OFF) aspmOff();
 
     setNum("MtkPciCommandBefore", pci->configRead16(kIOPCIConfigCommand), 16);
     pci->setMemoryEnable(true);
@@ -214,10 +229,18 @@ bool WTLWireless::start(IOService *provider) {
     setNum("MtkHwRev", hwRev);
     setNum("MtkAsicRevision", (chipId << 16) | (hwRev & 0xff)); // mdev->rev in mt7925_pci_probe
     setNum("MtkConnOnMisc", rr(MT_CONN_ON_MISC));
-    setNum("MtkWfsysSwRst", rr(chip->wfsysRst));
+    if (!chip->cbtop) setNum("MtkWfsysSwRst", rr(chip->wfsysRst));
     setNum("MtkBadAccess", badAccess);
 
-    if ((chipId & 0xffff) != chip->id) {
+    // some MT7927 boards report another CHIPID word (mt7925_pci_probe forces the chip); only the known ones are taken
+    uint16_t idLow = chipId & 0xffff;
+    bool idOk = idLow == chip->id;
+    for (uint8_t i = 0; !idOk && i < chip->nChipIdAlt; i++) idOk = idLow == chip->chipIdAlt[i];
+    if (idOk && idLow != chip->id) {
+        setNum("MtkChipIdRaw", chipId);
+        setNum("MtkAsicRevision", (chip->id << 16) | (hwRev & 0xff));
+    }
+    if (!idOk) {
         setProperty("MtkChipUnsupported", "chip id does not match the PCI device");
         fwOwn();                                // leave it as found, report only
         step("W1 partial: drv_own ok, unexpected chip id");
@@ -227,7 +250,10 @@ bool WTLWireless::start(IOService *provider) {
     setNum("MtkChipBands", chip->bands, 8);     // bit 0 2.4 GHz, bit 1 5 GHz, bit 2 6 GHz
     setNum("MtkChipNss", chip->nss, 8);
     setNum("MtkChipMaxBw", chip->maxBw, 8);
-    step("W1 pass: drv_own ok, chip 7925");
+    char pass[48];
+    chipConfirmed = true;
+    snprintf(pass, sizeof(pass), "W1 pass: drv_own ok, chip %x", chip->id);
+    step(pass);
 
     mapper = IOMapper::copyMapperForDevice(pci);
     setProperty("MtkMapper", mapper ? "device mapper" : "none (physical addresses)");
@@ -286,10 +312,10 @@ void WTLWireless::stop(IOService *provider) {
         pci->unregisterInterrupt(irqIndex);
         irqIndex = -1;
     }
-    if (mmio)
+    if (mmio && chipConfirmed)
         rawWrite(0xd4208, rawRead(0xd4208) & ~0x5u); // WFDMA0 GLO_CFG: stop TX/RX DMA before freeing rings
     for (uint8_t t = 0; t < 8; t++) rxBaStop(t);
-    ringFree(txData); ringFree(txMcu); ringFree(txFwdl); ringFree(rxMcu); ringFree(rxData);
+    ringFree(txData); ringFree(txMcu); ringFree(txFwdl); ringFree(rxMcu); ringFree(rxData); ringFree(rxWa);
     OSSafeReleaseNULL(mapper);
     OSSafeReleaseNULL(map);
     mmio = nullptr;

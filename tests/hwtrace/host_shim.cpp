@@ -32,6 +32,20 @@ void hw_unexpected(const char *what) { hw_trace("UNEXPECTED %s", what); }
 
 uint16_t g_hw_pci_device = 0x7925;
 bool g_hw_old_set = false;
+uint16_t g_hw_chip = 0x7925;
+int g_hw_chipid_raw = -1;
+int g_hw_lnkctl = -1;
+static std::map<std::string, uint32_t> g_bootargs;
+void hw_set_bootarg(const char *kv) {
+    const char *eq = strchr(kv, '=');
+    if (eq) g_bootargs[std::string(kv, (size_t)(eq - kv))] = (uint32_t)strtoul(eq + 1, nullptr, 0);
+}
+bool hw_bootarg(const char *key, uint32_t *val) {
+    auto it = g_bootargs.find(key);
+    if (it == g_bootargs.end()) return false;
+    *val = it->second;
+    return true;
+}
 
 const OSMetaClass *OSMetaClass::getMetaClassWithName(const OSSymbol *name) {
     static OSMetaClass old;

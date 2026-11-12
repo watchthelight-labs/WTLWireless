@@ -17,7 +17,13 @@ constexpr uint32_t R_REMAP_L1 = 0x155024, R_REMAP_L2 = 0x0120, REMAP_BASE_L1 = 0
 constexpr uint32_t R_GLO_CFG = 0xd4208;
 constexpr uint32_t TX_RING0 = 0xd4300, RX_RING0 = 0xd4500;
 constexpr uint32_t CHIP_HW_CHIPID = 0x70010200, CHIP_HW_REV = 0x70010204;
-constexpr uint32_t TXQ_BAND0 = 0, TXQ_MCU_WM = 15, TXQ_FWDL = 16, RXQ_MCU_WM = 0, RXQ_BAND0 = 2;
+constexpr uint32_t TXQ_BAND0 = 0, TXQ_MCU_WM = 15, TXQ_FWDL = 16;
+// MT7927 (mt7925/mt7925.h mt7927_rxq_id): MCU events on RX ring 6, data on 4, firmware tx-done notices on 7
+const bool is7927() { return g_hw_chip == 0x7927; }
+uint32_t rxqMcu() { return is7927() ? 6 : 0; }
+uint32_t rxqData() { return is7927() ? 4 : 2; }
+// CBTOP block of the MT7927 (mt792x_regs.h MT7927_*), BAR0 offsets
+constexpr uint32_t R_CB_RGU = 0x1f8600, R_CB_MCU_OWN = 0x1f5034, R_CB_ROMCODE = 0xc1604;
 
 uint32_t fnv(const uint8_t *p, size_t n) {
     uint32_t h = 2166136261u;
@@ -71,7 +77,10 @@ uint32_t Mt7925Model::read(uint32_t off) {
         if (ownPending) { v = ownSync; ownSync = ownTarget; ownPending = false; }
         else v = ownSync;
         v <<= 2;                                   // PCIE_LPCR_HOST_OWN_SYNC is bit 2
-    } else if (off == R_WFSYS_RST) {
+    } else if (is7927() && off == R_CB_ROMCODE) {
+        if (rstPending) { rstPending = false; rstDone = true; v = 0; }   // the ROM code idles on the read after MCU_OWN_SET
+        else v = rstDone ? 0x1d1e : 0;
+    } else if (!is7927() && off == R_WFSYS_RST) {
         uint32_t s = regs.count(off) ? regs[off] : 0;
         if (rstPending) { rstPending = false; rstDone = true; v = s & ~0x10u; }
         else v = s | (rstDone ? 0x10u : 0);        // bit 4: WFSYS init done
@@ -81,7 +90,7 @@ uint32_t Mt7925Model::read(uint32_t off) {
     } else if (off == R_GLO_CFG) {
         v = (regs.count(off) ? regs[off] : 0) & ~0xau;   // GUESS: the DMA engines are never busy
     } else if (mapped && chip == CHIP_HW_CHIPID) {
-        v = 0x00007925;                            // GUESS: upper half of the register
+        v = g_hw_chipid_raw >= 0 ? (uint32_t)g_hw_chipid_raw : g_hw_chip;   // GUESS: upper half of the register
     } else if (mapped && chip == CHIP_HW_REV) {
         v = 0x00008a00;                            // GUESS: revision value
     } else {
@@ -104,7 +113,17 @@ void Mt7925Model::write(uint32_t off, uint32_t val) {
         if (val & 2) { ownPending = true; ownTarget = false; }        // CLR_OWN: driver takes it
         return;
     }
-    if (off == R_WFSYS_RST) {
+    if (is7927() && off == R_CB_RGU) {         // WF subsystem reset: bit 4 up stops the firmware, down lets the MCU boot
+        if (val & 0x10) { rstDone = false; rstPending = false; n9Ready = n9Pending = semHeld = false; }
+        regs[off] = val;
+        return;
+    }
+    if (is7927() && off == R_CB_MCU_OWN) {
+        if ((val & 1) && !rstDone) rstPending = true;
+        regs[off] = val;
+        return;
+    }
+    if (!is7927() && off == R_WFSYS_RST) {
         bool was = regs.count(off) && (regs[off] & 1);
         if (!(val & 1)) { rstDone = false; rstPending = false; n9Ready = n9Pending = semHeld = false; }   // reset asserted: firmware gone
         else if (!was) rstPending = true;
@@ -171,7 +190,7 @@ void Mt7925Model::mcuReply(uint8_t eid, uint8_t seq, const std::vector<uint8_t> 
     pkt[37] = seq;
     memcpy(pkt.data() + bodyAt, body.data(), body.size());
     hw_trace("RXMCU eid 0x%02x seq %u len %zu fnv %08x", eid, seq, pkt.size(), fnv(pkt.data(), pkt.size()));
-    rxInject(RXQ_MCU_WM, pkt.data(), (uint32_t)pkt.size());
+    rxInject((int)rxqMcu(), pkt.data(), (uint32_t)pkt.size());
 }
 
 void Mt7925Model::mcuTx(const uint8_t *m, uint32_t len) {
@@ -263,7 +282,7 @@ void Mt7925Model::scanBeacons() {
     for (const Ap &a : kAps) {
         std::vector<uint8_t> f = beacon(a);
         hw_trace("RXDATA beacon ch %u len %zu fnv %08x", a.ch, f.size(), fnv(f.data(), f.size()));
-        rxInject(RXQ_BAND0, f.data(), (uint32_t)f.size());
+        rxInject((int)rxqData(), f.data(), (uint32_t)f.size());
     }
 }
 
@@ -289,5 +308,5 @@ void Mt7925Model::apFrame(const uint8_t *f, uint32_t len) {
     else { p16(h + 24, 0x0401); p16(h + 26, 0); p16(h + 28, 0xc001); }      // capability, success, AID 1 with the two top bits set
     p32(r.data(), (2u << 27) | (uint32_t)r.size());
     hw_trace("RXDATA %s response len %zu fnv %08x", f[0] == 0xb0 ? "auth" : "assoc", r.size(), fnv(r.data(), r.size()));
-    rxInject(RXQ_BAND0, r.data(), (uint32_t)r.size());
+    rxInject((int)rxqData(), r.data(), (uint32_t)r.size());
 }

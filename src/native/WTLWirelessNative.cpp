@@ -4,7 +4,7 @@
 // ga403wm-hackintosh kexts/itlmt7925Native/itlmt7925_wifi.cpp (BSD-3-Clause-Clear, Copyright (c) 2026 thanhnndev and
 // contributors); every offset was re-read in the 25G241 dump (the kcabi dump of 25G241) before use.
 #include "WTLWirelessNative.hpp"
-#define MTK_NATIVE_VERSION "0.14.0"   // also Info.plist (build.sh checks they match)
+#define MTK_NATIVE_VERSION "0.15.0"   // also Info.plist (build.sh checks they match)
 #include "WTLWirelessNativeIf.hpp"
 #include "MtkNativeAbi.hpp"
 #include "MtkNativeTrace.hpp"

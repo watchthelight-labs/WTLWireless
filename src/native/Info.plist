@@ -15,11 +15,11 @@
 	<key>CFBundlePackageType</key>
 	<string>KEXT</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.14.0</string>
+	<string>0.15.0</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleVersion</key>
-	<string>0.14.0</string>
+	<string>0.15.0</string>
 	<key>IOKitPersonalities</key>
 	<dict>
 		<key>WTLWireless native front end</key>
@@ -182,7 +182,7 @@
 		<key>com.apple.kpi.mach</key>
 		<string>14.0</string>
 		<key>org.watchthelight.WTLWireless</key>
-		<string>0.14.0</string>
+		<string>0.15.0</string>
 	</dict>
 	<key>OSBundleRequired</key>
 	<string>Network-Root</string>

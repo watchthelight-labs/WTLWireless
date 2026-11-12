@@ -12,6 +12,8 @@ mkdir -p "$OUT"
 
 "$HW/build.sh" "$MAIN" "$OUT/ref-build"
 "$OUT/ref-build/hwtrace" "$OUT/ref.txt"
+A7927="--pcidev 7927 --chip 7927 --bootarg mtk7927=1 --lnkctl 43"
+"$OUT/ref-build/hwtrace" "$OUT/ref7927.txt" $A7927
 
 fail=0
 # name | file | sed expression (BSD sed) | what it stands for
@@ -26,13 +28,15 @@ run_case() {
         if cmp -s "$SRC/$file" "$d/src/$SUB/$file"; then echo "selftest: $name: the sed expression matched nothing" >&2; fail=1; return; fi
     fi
     "$HW/build.sh" "$d/src" "$d/build"
-    "$d/build/hwtrace" "$d/trace.txt"
-    if cmp -s "$OUT/ref.txt" "$d/trace.txt"; then
+    local args="" ref="$OUT/ref.txt"
+    case "$name" in m7927-*) args="$A7927"; ref="$OUT/ref7927.txt";; esac
+    "$d/build/hwtrace" "$d/trace.txt" $args
+    if cmp -s "$ref" "$d/trace.txt"; then
         if [ "$expr" = "-" ]; then echo "selftest: $name: identical, as it must be ($what)"
         else echo "selftest: $name: NOT DETECTED ($what)"; fail=1; fi
     else
         if [ "$expr" = "-" ]; then echo "selftest: $name: DIFFERS but nothing was changed ($what)"; fail=1
-        else echo "selftest: $name: detected, $(diff "$OUT/ref.txt" "$d/trace.txt" | grep -c '^[<>]') changed lines ($what)"; fi
+        else echo "selftest: $name: detected, $(diff "$ref" "$d/trace.txt" | grep -c '^[<>]') changed lines ($what)"; fi
     fi
 }
 
@@ -43,4 +47,10 @@ run_case ringid MtkFw.cpp 's/TXQ_MCU_WM = 15/TXQ_MCU_WM = 14/' "DMA ring id: MCU
 run_case rxring MtkChip.cpp 's/^        0, 2,$/        0, 3,/' "chip table: RX data ring number"
 run_case rxirq MtkChip.cpp 's/^        1u << 0, 1u << 2,$/        1u << 0, 1u << 3,/' "chip table: RX data interrupt bit"
 run_case irqmask MtkFw.cpp 's/INT_MCU_CMD = 1u << 29/INT_MCU_CMD = 1u << 28/' "IRQ enable mask: MCU command bit"
+# the MT7927 row, against the trace of the opt-in run
+run_case m7927-prefetch MtkChip.cpp 's/{ 0x698, pf(0x0080, 0x8) }/{ 0x698, pf(0x0080, 0x4) }/' "MT7927 prefetch table: depth of RX ring 6"
+run_case m7927-rxring MtkChip.cpp 's/^        6, 4,  /        6, 5,  /' "MT7927 row: RX data ring number"
+run_case m7927-irq MtkChip.cpp 's/^        1u << 14, 1u << 12,  /        1u << 20, 1u << 12,  /' "MT7927 row: MCU RX interrupt bit (outside GENMASK(18, 4))"
+run_case m7927-cbtop MtkChip.cpp 's/0x1f8600, 0x1f5034, 0xc1604,/0x1f8600, 0x1f5038, 0xc1604,/' "MT7927 CBTOP reset: MCU own register"
+run_case m7927-quirk MtkChip.cpp 's/MTK_Q_ASPM_OFF | MTK_Q_WFDMA_EXT | MTK_Q_BAND_IDX | MTK_Q_DBDC,/MTK_Q_ASPM_OFF | MTK_Q_WFDMA_EXT | MTK_Q_BAND_IDX,/' "MT7927 row: DBDC quirk off"
 [ $fail = 0 ] && echo "selftest: all mutations detected" || { echo "selftest: FAILED" >&2; exit 1; }

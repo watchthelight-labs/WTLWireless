@@ -1,6 +1,7 @@
 // <wtl> project: wtlwireless | file: tests/hwtrace/trace_main.cpp | author: watchthelight </wtl>
 // Drives the real WTLWireless code against the fake MT7925 and writes the hardware trace.
 // usage: hwtrace <trace.txt> [--cov <functions.txt>] [--props] [--pcidev hex] [--ops6] [--oldset]
+//        [--chip 7925|7927] [--chipid hex] [--lnkctl hex] [--bootarg key=value]
 
 #include "model.h"
 #include <hw_shim.h>
@@ -128,6 +129,10 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--props")) hw_set_props(true);
         else if (!strcmp(argv[i], "--ops6")) g_ops6 = true;
         else if (!strcmp(argv[i], "--oldset")) g_hw_old_set = true;
+        else if (!strcmp(argv[i], "--chip") && i + 1 < argc) g_hw_chip = (uint16_t)strtoul(argv[++i], nullptr, 16);
+        else if (!strcmp(argv[i], "--chipid") && i + 1 < argc) g_hw_chipid_raw = (int)strtoul(argv[++i], nullptr, 16);
+        else if (!strcmp(argv[i], "--lnkctl") && i + 1 < argc) g_hw_lnkctl = (int)strtoul(argv[++i], nullptr, 16);
+        else if (!strcmp(argv[i], "--bootarg") && i + 1 < argc) hw_set_bootarg(argv[++i]);
         else if (!strcmp(argv[i], "--pcidev") && i + 1 < argc) g_hw_pci_device = (uint16_t)strtoul(argv[++i], nullptr, 16);
         else g_tracePath = argv[i];
     }

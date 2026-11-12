@@ -20,7 +20,7 @@
 namespace {
 constexpr uint32_t MCU_UNI_TXD_LEN = 48;   // struct mt76_connac2_mcu_uni_txd
 constexpr uint8_t UNI_DEV_INFO_UPDATE = 0x01, UNI_BSS_INFO_UPDATE = 0x02, UNI_CHIP_CONFIG = 0x0e,
-                  UNI_SET_DOMAIN_INFO = 0x15, UNI_SCAN_REQ = 0x16, UNI_EFUSE_CTRL = 0x2d;
+                  UNI_SET_DOMAIN_INFO = 0x15, UNI_SCAN_REQ = 0x16, UNI_SET_DBDC_PARMS = 0x28, UNI_EFUSE_CTRL = 0x2d;
 constexpr uint8_t MCU_CMD_ACK = 1u << 0, MCU_CMD_UNI = 1u << 1, MCU_CMD_SET = 1u << 2;
 constexpr uint8_t EVENT_SCAN_DONE = 0x0e;      // MCU_UNI_EVENT_SCAN_DONE
 constexpr uint32_t MDP_DCR0 = 0x820cc800, MDP_DCR1 = 0x820cc804;
@@ -204,6 +204,17 @@ void WTLWireless::pollRx() {
         if (!p) break;
         dispatchRx(p, len);
         rxRelease(rxData);
+    }
+    // MT7927 has a second RX ring (7) for firmware events and TX-done notices; it is classified like the others, and
+    // draining it matters more than what it holds: an unread ring stalls the firmware
+    if (chip && chip->rxqWa && rxWa.desc.va) {
+        for (int guard = 0; guard < 128; guard++) {
+            uint32_t len = 0;
+            const uint8_t *p = rxPoll(rxWa, &len);
+            if (!p) break;
+            dispatchRx(p, len);
+            rxRelease(rxWa);
+        }
     }
 }
 
@@ -465,7 +476,7 @@ int WTLWireless::devInfo(bool enable) {
     put16(b + 0, 0);            // UNI_BSS_INFO_BASIC
     put16(b + 2, 32);
     b[4] = enable ? 1 : 0;      // active
-    b[7] = 0xff;                // band_idx
+    b[7] = (chip->quirks & MTK_Q_BAND_IDX) ? 0 : 0xff;   // band_idx (MT7927: 0 for the idle record)
     put32(b + 8, 0x10001);      // CONNECTION_INFRA_STA
     b[12] = 1;                  // conn_state
     put16(b + 20, 19);          // bmc_tx_wlan_idx (itlmt7925 value, WTBL reserved)
@@ -530,6 +541,13 @@ int WTLWireless::hwInit(bool keepMac) {
     macInitBand(1);
     setNum("MtkW4DmaDcr0", rr(dmaDcr0(0)));
     setNum("MtkW4Rfcr", rr(rmacBase(0)));
+
+    // 3b. MT7927: dual-band concurrency on (mt7925_mcu_set_dbdc: UNI_MBMC_SETTING under SET_DBDC_PARMS). Linux logs a
+    // failure and carries on, so this only publishes the result.
+    if (chip->quirks & MTK_Q_DBDC) {
+        uint8_t dbdc[12] = {0, 0, 0, 0, 0, 0, 8, 0, 1, 0, 0, 0};   // pad[4], tag 0, len 8, mbmc_en 1, band 0
+        setNum("MtkW4Dbdc", (uint32_t)uniCmd(UNI_SET_DBDC_PARMS, dbdc, sizeof(dbdc), false, nullptr, 0, nullptr));
+    }
 
     // 4. station interface (mt76_connac_mcu_uni_add_dev, NL80211_IFTYPE_STATION)
     setNum("MtkW4DevInfo", (uint32_t)devInfo(true));

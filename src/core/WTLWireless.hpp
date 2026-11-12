@@ -111,6 +111,8 @@ private:
     int bringUp();
     int hwStart();
     bool pciFlr();
+    bool wfsysReset();
+    void aspmOff();
     void quiesce(const char *why);
     int reload(const char *why);
     int ringAlloc(MtkRing &r, bool rx, uint16_t idx, uint16_t n, uint32_t bufSize);
@@ -298,12 +300,14 @@ private:
     IOMemoryMap *map = nullptr;
     volatile uint8_t *mmio = nullptr;
     uint32_t mmioLen = 0;
+    bool chipConfirmed = false;         // CHIPID matched the row: only then do quiesce and stop write to the chip
     const MtkChip *chip = nullptr;      // set from the PCI device ID before the first register access
     uint32_t backupL1 = 0, backupL2 = 0;
     uint32_t badAccess = 0;
 
     IOMapper *mapper = nullptr;
     MtkRing txData, txMcu, txFwdl, rxMcu, rxData;
+    MtkRing rxWa;                       // extra RX ring of some chips (MT7927 ring 7), drained in pollRx
     int irqIndex = -1;
     volatile uint32_t irqCount = 0, irqLastStatus = 0;
     uint32_t rxEvents = 0, rxUnmatched = 0, fwBytes = 0;

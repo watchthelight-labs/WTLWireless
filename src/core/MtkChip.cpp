@@ -1,8 +1,13 @@
 // <wtl> project: wtlwireless | file: src/core/MtkChip.cpp | author: watchthelight </wtl>
-// SPDX-License-Identifier: ISC
+// SPDX-License-Identifier: ISC AND BSD-3-Clause-Clear
 // The chip table. MT7925 values are ported from Linux mt76 v6.18 (mt7925/pci.c fixed_map, mt792x_dma.c prefetch,
 // mt7925/regs.h and mt792x_regs.h interrupt bits, mt7925/init.c capabilities):
 //   Copyright (C) 2023 MediaTek Inc. (ISC, see LICENSE in this folder)
+// MT7927 values come from Linux master 79eb6679ef6a (2026-11-11), files mt7925/pci.c, mt7925/regs.h, mt792x_regs.h,
+// mt792x_dma.c, mt792x.h and mt7925/mt7925.h, which carry SPDX BSD-3-Clause-Clear:
+//   Copyright (C) 2023 MediaTek Inc.
+// A tester's own port to macOS confirmed the register values on hardware. That port has no licence, so nothing is
+// copied from it.
 
 #include "MtkChip.h"
 
@@ -15,6 +20,14 @@ extern const unsigned char mtk_fw_ram[];
 extern const unsigned int mtk_fw_ram_len;
 extern const char mtk_fw_ram_sha256[];
 extern const char mtk_fw_ram_name[];
+extern const unsigned char mtk_fw_patch_7927[];
+extern const unsigned int mtk_fw_patch_7927_len;
+extern const char mtk_fw_patch_7927_sha256[];
+extern const char mtk_fw_patch_7927_name[];
+extern const unsigned char mtk_fw_ram_7927[];
+extern const unsigned int mtk_fw_ram_7927_len;
+extern const char mtk_fw_ram_7927_sha256[];
+extern const char mtk_fw_ram_7927_name[];
 }
 
 namespace {
@@ -89,7 +102,31 @@ const MtkPrefetch kPrefetch7925[] = {
     { 0x640, pf(0x0540, 0x4) },
 };
 
+// mt7927_dma_prefetch_setup: PREFETCH_CTRL is written back as read, CFG0 to CFG3 sit at 0xd70f0 (WFDMA0 + 0x30f0),
+// then RX rings 4, 6 and 7 and TX rings 16, 15 and 0
+const MtkPrefetch kPrefetch7927[] = {
+    { 0x3030, 0, true },
+    { 0x30f0, 0x660077 },
+    { 0x30f4, 0x1100 },
+    { 0x30f8, 0x30004f },
+    { 0x30fc, 0x542200 },
+    { 0x690, pf(0x0000, 0x8) },
+    { 0x698, pf(0x0080, 0x8) },
+    { 0x69c, pf(0x0100, 0x4) },
+    { 0x640, pf(0x0140, 0x4) },
+    { 0x63c, pf(0x0180, 0x10) },
+    { 0x600, pf(0x0280, 0x4) },
+};
+
+// mt7927_wfsys_reset and mt792x_regs.h MT7927_* (CBInfra block)
+const MtkCbtop kCbtop7927 = {
+    0x1f8600, 0x1f5034, 0xc1604, 0x1d1e, 0x21008, 0x1807, 0x40000, 0x40400,
+};
+
 const uint16_t kPci7925[] = { 0x7925, 0x0717, 0 };
+const uint16_t kPci7927[] = { 0x7927, 0x6639, 0x0738, 0 };
+// raw CHIPID words seen from MT7927 boards: the real one, the MT6639 die name, the PCI ID, and zero
+const uint16_t kAlt7927[] = { 0x6639, 0x0738, 0x0000 };
 
 const MtkChip kChips[] = {
     {
@@ -103,6 +140,25 @@ const MtkChip kChips[] = {
         kPrefetch7925, sizeof(kPrefetch7925) / sizeof(kPrefetch7925[0]),
         MTK_BAND_2G | MTK_BAND_5G | MTK_BAND_6G, 2, 3,
         true, true,
+        nullptr, 0, 0, 0, nullptr, 0, nullptr,
+    },
+    {
+        // Matched but opt-in: it runs only with boot-arg mtk7927=1 and has been seen on one tester's machine, not here.
+        // Same fixed map as MT7925 (mt7925/pci.c uses it for both). Width stays at 160 MHz: the hardware does 320 MHz
+        // and MLO, which this driver does not offer.
+        0x7927, "MT7927", kPci7927,
+        kMap7925, sizeof(kMap7925) / sizeof(kMap7925[0]),
+        { mtk_fw_patch_7927, &mtk_fw_patch_7927_len, mtk_fw_patch_7927_sha256, mtk_fw_patch_7927_name },
+        { mtk_fw_ram_7927, &mtk_fw_ram_7927_len, mtk_fw_ram_7927_sha256, mtk_fw_ram_7927_name },
+        0,                                          // no WFSYS_SW_RST_B: the reset goes through CBTOP
+        6, 4,                                       // MT7927_RXQ_MCU_WM, MT7927_RXQ_BAND0
+        1u << 14, 1u << 12,                         // MT7927_RX_DONE_INT_ENA6, MT7927_RX_DONE_INT_ENA4
+        kPrefetch7927, sizeof(kPrefetch7927) / sizeof(kPrefetch7927[0]),
+        MTK_BAND_2G | MTK_BAND_5G | MTK_BAND_6G, 2, 3,
+        true, true,
+        &kCbtop7927, 7, 1u << 15,                   // MT7927_RXQ_DATA2, MT7927_RX_DONE_INT_ENA7
+        MTK_Q_ASPM_OFF | MTK_Q_WFDMA_EXT | MTK_Q_BAND_IDX | MTK_Q_DBDC,
+        kAlt7927, sizeof(kAlt7927) / sizeof(kAlt7927[0]), "mtk7927",
     },
 };
 } // namespace

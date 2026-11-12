@@ -6,7 +6,7 @@
 #   make SDK=/path/to/MacKernelSDK
 NAME         := WTLWireless
 KEXT_ID      := org.watchthelight.WTLWireless
-KEXT_VERSION := 0.14.0
+KEXT_VERSION := 0.15.0
 
 SDK    ?= $(CURDIR)/MacKernelSDK
 LD     := LD_LIBRARY_PATH=/opt/dispatch/lib /opt/cctools/bin/x86_64-apple-darwin-ld
@@ -50,8 +50,8 @@ out/linux/obj/kmod_info.o: src/kmod_info.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -DKEXT_ID=$(KEXT_ID) -DKEXT_VERSION='"$(KEXT_VERSION)"' -c $< -o $@
 
-# firmware blobs from linux-firmware, checked against firmware/mt7925/SHA256SUMS
-out/gen/MtkFirmware.c: tools/gen_firmware.py firmware/mt7925/SHA256SUMS
+# firmware blobs from linux-firmware, checked against the SHA256SUMS in firmware/mt7925 and firmware/mt7927
+out/gen/MtkFirmware.c: tools/gen_firmware.py firmware/mt7925/SHA256SUMS firmware/mt7927/SHA256SUMS
 	python3 tools/gen_firmware.py $@
 
 $(BIN): $(OBJS)

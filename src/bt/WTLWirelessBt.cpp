@@ -838,7 +838,7 @@ bool WTLWirelessBt::start(IOService *provider) {
     lock = IOLockAlloc();
     if (!cmd || !ev || !lock)
         return false;
-    setProperty("MtkBtVersion", "0.14.0");
+    setProperty("MtkBtVersion", "0.15.0");
     setProperty("MtkBtFirmware", mtk_bt_fw_name);
     setProperty("MtkBtFirmwareSha256", mtk_bt_fw_sha256);
     setProperty("MtkBtFirmwareBytes", mtk_bt_fw_len, 32);
