@@ -10,7 +10,7 @@ Most of what the core knows about the hardware is ported from `drivers/net/wirel
 in Linux v6.18 (https://github.com/torvalds/linux, tag v6.18, commit 7d0a66e4bb90), plus two TLV
 length fixes from Linux master after v6.18 (commit 9ddb7487 and its CLC equivalent) in `src/core/MtkPower.cpp`.
 Copyright (C) 2018 Felix Fietkau, Copyright (C) 2020, 2023 MediaTek Inc. mt76 moved to BSD-3-Clause-Clear
-after v6.18; nothing here comes from the later versions except those two fixes.
+after v6.18; what comes from the later versions is those two fixes and the MT7927 support listed in the next section.
 
 | File | Ported from |
 | --- | --- |
@@ -27,6 +27,20 @@ after v6.18; nothing here comes from the later versions except those two fixes.
 `src/core/MtkDma.cpp` (IODMACommand memory), `src/core/WTLWirelessEth.cpp` (the IOEthernetController), `src/core/MtkUserClient.cpp`
 (the IOUserClient), `src/core/MtkCoreApi.h` and `src/core/MtkUserApi.h` are written against Apple's IOKit headers and
 contain no mt76 code.
+
+### Linux mt76 after v6.18, MT7927 (BSD-3-Clause-Clear)
+The MT7927 row of the chip table and the code paths only that chip takes are written from Linux master, commit
+79eb6679ef6a (2026-11-11), files `mt7925/pci.c`, `mt7925/regs.h`, `mt7925/mt7925.h`, `mt792x_regs.h`, `mt792x_dma.c`
+and `mt792x.h`. Those files carry `SPDX-License-Identifier: BSD-3-Clause-Clear`, Copyright (C) 2023 MediaTek Inc.;
+the licence text is in `LICENSES/BSD-3-Clause-Clear-mt76.txt`.
+
+| File | From |
+| --- | --- |
+| `src/core/MtkChip.cpp` | the MT7927 row: PCI ids, RX ring numbers and interrupt bits, the prefetch table (`mt7927_dma_prefetch_setup`), the CBTOP reset addresses, the quirk list |
+| `src/core/MtkFw.cpp` | `mt7927_wfsys_reset` (reset through CBTOP), `mt7927_wfdma_setup` (two GLO_CFG bits), the DTX and DRX pointer reset before the rings, the third RX ring |
+| `src/core/WTLWireless.cpp` | ASPM off in Link Control, the CHIPID words an MT7927 board may report (`mt7925_pci_probe`) |
+| `src/core/MtkScan.cpp`, `src/core/MtkJoin.cpp` | the band index in DEV_INFO and BSS_INFO (`mt7927_band_idx`), the DBDC command (`mt7925_mcu_set_dbdc`) |
+| `tests/hwtrace/golden-mt7927.txt` | the expected register sequence, worked out by hand from the same files |
 
 ### itlmt7925 (BSD-3-Clause-Clear)
 itlmt7925, from https://github.com/thanhnndev/ga403wm-hackintosh (release kext-v1.1), by thanhnndev
@@ -88,6 +102,11 @@ Cross-checked against and partly adapted from `kexts/MtkBtFw/MtkBtFw.cpp` of htt
 MediaTek's, from linux-firmware (https://gitlab.com/kernel-firmware/linux-firmware, commit
 d5455717ead0), unmodified and redistributable under `LICENSES/LICENCE.mediatek`. They are not
 under ISC. The build embeds them in the core.
+
+`firmware/mt7927/WIFI_MT6639_PATCH_MCU_2_1_hdr.bin` and `firmware/mt7927/WIFI_RAM_CODE_MT6639_2_1.bin` are the MT7927
+pair (the chip's die is called MT6639), also MediaTek's and unmodified, from linux-firmware commit 69e51bb26f3f,
+`mediatek/mt7927/`, under the same `LICENSES/LICENCE.mediatek`. The build embeds them in the core too; they are only
+used on an MT7927 that was opted in.
 
 `firmware/mt7925/BT_RAM_CODE_MT7925_1_1_hdr.bin` is MediaTek's, from linux-firmware (https://gitlab.com/kernel-firmware/linux-firmware, commit d5455717ead0, `mediatek/mt7925/`), unmodified, sha256 `be7c18e37221e277baaef853be3a0ba930138ee879f336ff7b185e79ab09a5c9`, redistributable under `LICENSES/LICENCE.mediatek` (for use with MediaTek devices). It is not under ISC or Clear BSD. The build embeds it in the Bluetooth part.
 
