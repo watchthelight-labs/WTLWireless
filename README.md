@@ -38,6 +38,7 @@ their code, history and open issues are here.
 | MediaTek MT7925 (Filogic 360), Lenovo Legion 5 15IAX10 and other 2025 laptops | `14C3:7925`, subsystem `17AA:E0FF` | tested daily, every number in this README comes from it |
 | AMD RZ717 (MT7925 on AM5 desktop boards: ASRock X870 Steel Legend WiFi and others) | `14C3:0717` | matched since 0.11.1; Bluetooth confirmed on an X870, Wi-Fi from the Wi-Fi menu on another AM5 board ([WTLWifiMenu #3](https://github.com/watchthelight-labs/WTLWifiMenu/issues/3)) |
 | Other MT7925 boards (different subsystem ids) | `14C3:7925` | should work; an ASUS ROG Strix B860-G desktop reports Wi-Fi and Bluetooth working on 26.7.2 ([#4](https://github.com/watchthelight-labs/WTLWireless/issues/4)), and an HP HyperX OMEN PRO 16 laptop (subsystem `103C:8C38`, Ryzen 9 9955HX) reports the native menu joining at boot on 26.7.2 ([#6](https://github.com/watchthelight-labs/WTLWireless/issues/6)); report either way |
+| MediaTek MT7927 (Filogic 380), AMD RZ738 | `14C3:7927`, `14C3:6639`, `14C3:0738` | **in the chip table since 0.15.0, switched off, never run on hardware by me.** Without boot-arg `mtk7927=1` the driver only reports the card and touches no register. Testers wanted: see "Other MediaTek cards" below. No Bluetooth yet (no firmware in linux-firmware) |
 | MT7921, MT7921K (RZ608), MT7922 (RZ616), MT7920, MT7902 | `14C3:7961`, `0608`, `7922`, `0616`, ... | **not supported**: different firmware and a different init path. See "Other MediaTek cards" below for what it would take and how to help; until then SimpleMtkWlan and its forks cover those cards |
 
 ### Bluetooth ids
@@ -95,6 +96,7 @@ Everything below was measured on one laptop (Legion 5 15IAX10, OpenCore 1.0.8) o
 
 | Version | What it adds | Tested on | Result |
 |---|---|---|---|
+| 0.15.0 | an MT7927 row in the chip table, off unless boot-arg `mtk7927=1` is set; without it the card is only reported. Nothing changes on an MT7925 | macOS 26.7.3 developer beta (25G416), MT7925 | joins the saved network at boot as before (5 GHz, 80 MHz, MCS 9, 2 streams, 866 Mbit/s); `MtkChipName` `MT7925`; the MT7927 path ran only in the host harness |
 | 0.14.0 | one kext: the driver, the Wi-Fi menu part and the Bluetooth loader in `WTLWireless.kext`, under new names and one version. Nothing changes on the air | macOS 26.7.3 developer beta (25G416) | Wi-Fi joins at boot through the Wi-Fi menu part inside the bundle, same channel list and link as 0.13.0 (5 GHz, 80 MHz, MCS 9, 2 streams, 866 Mbit/s); Bluetooth `ready` in 1.3 s, controller on |
 | 0.13.0 | core ops v6: a front end reads the chip name, streams, bands and width from the driver (`get_chip_info`), and channels come with a band (`get_channels2`, `get_link_chan`). Nothing changes on the air | macOS 26.7.3 developer beta (25G416) | joins at boot with MtkWlanNative 0.4.17 on v6; same channel list and link as 0.12.2 |
 | 0.12.2 | chip table: what differs between MT792x chips is data now, one MT7925 row; a card without a row is left untouched; `MtkFrontEnd` shows the request after the boot-arg. Nothing changes on the air | macOS 26.7.3 developer beta (25G416) | joins at boot with MtkWlanNative 0.4.16; 11ac, 80 MHz, MCS 9, 2 streams, 866 Mbit/s as before |
@@ -118,6 +120,7 @@ OpenCore 1.0.8) on macOS 26.7.1 (25G241), 26.7.2 (25G332), 26.7.3 (25G342) and t
 
 | Version | What it does | Result |
 |---|---|---|
+| 0.15.0 | version only; same code as 0.14.0 | joins the saved network at boot on 25G416, 5g157/80 at 866 Mbps |
 | 0.14.0 | moved into the bundle as `WTLWirelessNative.kext`; same code as 0.4.17 | joins the saved network at boot on 25G416, 5g44/80 at 866 Mbps; `MtkNativeCoreOps` 6 |
 | 0.4.17 | chip name, stream count and channel bands come from the driver (MtkWlan 0.13.0, core API v6); nothing hard-codes an MT7925 any more | same channel list, name and link as 0.4.16 on 25G416; `MtkNativeCoreOps` 6 |
 | 0.4.16 | allow-list and headers for the 26.7.3 developer beta (25G416); same code as 0.4.15 | joins the saved network at boot on 25G416, 5g44/80 at 866 Mbps |
@@ -146,6 +149,7 @@ Versions before 0.14.0 in this table are those of `MtkBt.kext`.
 
 | Version | Tested on | Result |
 |---|---|---|
+| 0.15.0 | Legion 5 15IAX10, macOS 26.7.3 developer beta (25G416), OpenCore 1.0.8 | version only; `MtkBtState` = `ready`, controller on. An MT7927's Bluetooth is not loaded |
 | 0.14.0 | Legion 5 15IAX10, macOS 26.7.3 developer beta (25G416), OpenCore 1.0.8 | moved into the bundle as `WTLWirelessBt.kext`; same code as 0.2.4. `MtkBtState` = `ready` in 1251 ms, controller on, known devices still listed. Pairing and audio were not repeated for this release |
 | 0.2.4 | Legion 5 15IAX10, macOS 26.7.1 (25G241) and 26.7.2 (25G332), OpenCore 1.0.8 | loaded on the Legion since 2026-10-23; changes since 0.2.0 are for other boards (more USB ids, the AMD RZ717 sleep-protection bypass, a warm-restart fix and a per-boot reset cap, reported in [#9](https://github.com/watchthelight-labs/WTLWireless/issues/9)) and are not exercised on the Legion's own chip |
 | 0.2.0 | Legion 5 15IAX10, macOS 26.7.1 (25G241), OpenCore 1.0.8, BlueToolFixup 2.7.2 | controller on at every boot since 2026-10-16; AirPods Pro pair, connect and play; `MtkBtState` = `ready`, 3 sections and 447,872 bytes sent, about 20 s from open to close on the current boot |
@@ -334,13 +338,25 @@ After a restart, skipped Bluetooth sections or a `MtkBtWarmPath` value are norma
 
 I test this driver on one card (MT7925, PCI `14c3:7925`, subsystem `17aa:e0ff`, in one laptop); users have it running on
 an ASUS B860 board and, from 0.11.1, on `14c3:0717`, the AMD RZ717 card on AM5 desktop boards (see Which cards). The chip table in
-`src/core/MtkChip.cpp` has one row, the MT7925, and a card without a row is left untouched, on purpose: the MT7921 and MT7922 (RZ608, RZ616) need
+`src/core/MtkChip.cpp` has two rows, the MT7925 and (since 0.15.0, switched off) the MT7927, and a card without a row is left untouched, on purpose: the MT7921 and MT7922 (RZ608, RZ616) need
 their own firmware files (`WIFI_RAM_CODE_MT7961_1.bin` and the MT7961 patch instead of the MT7925 pair), a few MCU
 commands in the older non-UNI form, and their own TX power tables, and a kext that loads on a card it cannot bring up
 would cost you the Wi-Fi SimpleMtkWlan gives you today. The port is tracked in
 [issue #2](https://github.com/watchthelight-labs/WTLWireless/issues/2) with the file-by-file plan; it needs
 a card to test on, so if you have an MT7921 or MT7922 and an OpenCore machine, say so there. If you try the kext on a
-different MT7925 board, I want the result either way:
+different MT7925 board, I want the result either way.
+
+**MT7927 and RZ738 (PCI `14C3:7927`, `6639`, `0738`).** The row is written from Linux's mt76 driver and checked in a host
+harness against a hand-written list of what Linux does, and that is all: I have no such card. So it is off. Two steps,
+and the first one leaves the card alone:
+
+- Install the kext as it is. The driver sees the card, publishes `MtkChipMatched` and `MtkChipUnsupported`, and does
+  not touch it. Send the report from step 2 below to [issue #2](https://github.com/watchthelight-labs/WTLWireless/issues/2):
+  it tells me the PCI ids and the subsystem of your card.
+- To run it, add `mtk7927=1` to `boot-args`. Keep a second way to boot first (a USB stick with your old config): an
+  untested bring-up can hang the boot. Then send the report again, pass or fail; `MtkState` holds the step it reached.
+
+The report, for any card:
 
 1. Install the kext as above and reboot. Wait a minute after the desktop appears.
 2. Run `bash tools/mtk-report.sh` (no sudo). It writes `~/Desktop/mtk-report-<date>.tar.gz` with: the PCI ids of the

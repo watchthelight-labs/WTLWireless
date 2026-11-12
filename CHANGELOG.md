@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.15.0 (2026-11-12)
+
+The MT7927 (Filogic 380, also sold as AMD RZ738; PCI `14C3:7927`, `14C3:6639`, `14C3:0738`) is in the chip table,
+switched off. I do not have the card, so nothing of its path has run on hardware here. On an MT7925 or RZ717 nothing
+changes.
+
+- Without a boot-arg the driver only reports an MT7927: `MtkChipMatched` = `MT7927` and `MtkChipUnsupported` with the
+  reason on the `WTLWireless` node, and no register or config-space access at all. The card is left as the firmware
+  set it up.
+- With `mtk7927=1` in `boot-args` the driver runs it (`MtkChipOptIn` = true): reset through CBTOP in place of the
+  WFSYS reset register, RX rings 6, 4 and 7 with their interrupt bits, the MT7927 prefetch table, the DTX and DRX
+  pointer reset, two more GLO_CFG bits, ASPM off, a band index in DEV_INFO and BSS_INFO, and the DBDC command. The
+  firmware is `WIFI_MT6639_PATCH_MCU_2_1_hdr.bin` and `WIFI_RAM_CODE_MT6639_2_1.bin` from linux-firmware, embedded
+  beside the MT7925 pair (the kext grows by about 1.9 MB). Channel width is offered up to 160 MHz; no 320 MHz, no MLO.
+- An MT7927 board may report its CHIPID as 0x7927, 0x6639, 0x0738 or 0. Those four are accepted, anything else stops
+  before the DMA setup with `MtkChipUnsupported` = `chip id does not match the PCI device`. `MtkChipIdRaw` holds the
+  word when it was one of the other three.
+- Bluetooth on an MT7927 is not loaded: linux-firmware does not carry its Bluetooth firmware yet.
+- Source: Linux mt76 master at 79eb6679ef6a, which is BSD-3-Clause-Clear. `NOTICE.md` lists the files, the licence
+  text is in `LICENSES/BSD-3-Clause-Clear-mt76.txt`.
+
+If you have an MT7927 or RZ738: install the kext without the boot-arg first and send the report
+(`bash tools/mtk-report.sh`) to [issue #2](https://github.com/watchthelight-labs/WTLWireless/issues/2). Then, if you
+want to go further, add `mtk7927=1`, keep a second way to boot (the USB stick with the old config), and send the
+report again whatever happens. `MtkState` shows the step it reached.
+
+How it was checked: on the test laptop (MT7925, macOS 26.7.3 developer beta 25G416) 0.15.0 joins the saved network at
+boot as 0.14.0 did (5 GHz, 80 MHz, 866 Mbit/s), `MtkChipName` is `MT7925`, none of the three new properties appear,
+Bluetooth is `ready`. On the host, `tests/hwtrace/run.sh` shows the MT7925 register trace is the same 3589 events as
+before the change, that a fake MT7927 without the boot-arg gets zero register accesses, and that the opt-in run does
+what `golden-mt7927.txt` lists; that file is written by hand from the Linux code, so it checks my reading of Linux,
+not the hardware. `selftest.sh` has five more mutations, on the MT7927 row.
+
 ## 0.14.0 (2026-11-10)
 
 One kext in place of three. `WTLWireless.kext` holds the Wi-Fi driver, and inside it, under `Contents/PlugIns`, the Wi-Fi menu part (`WTLWirelessNative.kext`) and the Bluetooth firmware loader (`WTLWirelessBt.kext`). It replaces `MtkWlan.kext` 0.13.0, `MtkWlanNative.kext` 0.4.17 and `MtkBt.kext` 0.2.4. The code of the three is the same as in those versions. What changed is the names, the packaging and the version, which the three parts now share.

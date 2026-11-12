@@ -9,6 +9,10 @@ Bluetooth on a Hackintosh. It is one kext with two more inside it:
 | `WTLWireless.kext/Contents/PlugIns/WTLWirelessNative.kext` | macOS's own Wi-Fi menu on top of the driver (Tahoe 26.7.1 to 26.7.3 and the 26.7.3 developer beta 25G416) |
 | `WTLWireless.kext/Contents/PlugIns/WTLWirelessBt.kext` | the Bluetooth firmware loader |
 
+An MT7927 or AMD RZ738 (`14C3:7927`, `6639`, `0738`) is recognised since 0.15.0 and left untouched: that part has
+never run on hardware. Boot-arg `mtk7927=1` switches it on for testers; read "Other MediaTek cards" in the README
+first.
+
 `LICENSE`, `NOTICE.md` and `LICENSES/` must stay with the kext. Sources, status and the comparison with other
 MediaTek drivers: https://github.com/watchthelight-labs/WTLWireless
 
