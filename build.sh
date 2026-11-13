@@ -32,6 +32,12 @@ if [ ! -d "abi/$ABI" ]; then
   exit 1
 fi
 
+# macOS 15 Sequoia (24x builds) has the older IO80211 generation: other slots and payload layouts (src/native/MtkAbiCompat.h)
+case "$ABI" in
+  24*) ABIDEF="-DMTK_ABI_SEQUOIA=1"; GEN=sequoia ;;
+  *)   ABIDEF=""; GEN=tahoe ;;
+esac
+
 SDK=$(xcrun --sdk macosx --show-sdk-path)
 K=$SDK/System/Library/Frameworks/Kernel.framework/Headers
 RES=$(clang -print-resource-dir)
@@ -92,13 +98,15 @@ else
   echo "kmutil libraries: failed (out/libraries.err)"
 fi
 
-echo "=== native ($ABI)"
+echo "=== native ($ABI, $GEN)"
 OBJS=""
 for s in MtkNativeTrace WTLWirelessNative WTLWirelessNativeIf WTLWirelessNativeReq; do
-  clang++ $CXXFLAGS -Iabi/$ABI -Isrc/core -Isrc/native -c src/native/$s.cpp -o out/obj/native/$s.o
+  clang++ $CXXFLAGS $ABIDEF -Iabi/$ABI -Isrc/core -Isrc/native -c src/native/$s.cpp -o out/obj/native/$s.o
   OBJS="$OBJS out/obj/native/$s.o"
 done
 link native WTLWirelessNative $OBJS
+# a Sequoia native part carries only the Sequoia builds in its allow-list (src/native/Info.plist lists the Tahoe ones)
+[ "$GEN" = sequoia ] && python3 -I tools/abi-plist.py out/parts/WTLWirelessNative.kext/Contents/Info.plist "abi/$ABI/abi.json"
 # every undefined symbol must be exported by this Mac's kernel collection or by the core
 if [ -n "${NO_LINKCHECK:-}" ]; then
   echo "link check: skipped (NO_LINKCHECK)"
@@ -121,7 +129,7 @@ B=out/WTLWireless.kext
 cp -Rp out/parts/WTLWireless.kext "$B"
 mkdir -p "$B/Contents/PlugIns"
 cp -Rp out/parts/WTLWirelessNative.kext out/parts/WTLWirelessBt.kext "$B/Contents/PlugIns/"
-echo "=== bundle $B ($V, native part for $ABI)"
+echo "=== bundle $B ($V, native part for $ABI, $GEN)"
 # OpenCore wants one Kernel > Add entry per kext, the core before its plugins
 for k in WTLWireless.kext WTLWireless.kext/Contents/PlugIns/WTLWirelessNative.kext WTLWireless.kext/Contents/PlugIns/WTLWirelessBt.kext; do
   P=out/$k/Contents

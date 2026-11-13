@@ -64,7 +64,7 @@ bool WTLWirelessNativeIf::rateInfo(mtk_rate_info *r) {
 
 // apple80211_channel_data: u32 version, then apple80211_channel {u32 version, u32 channel, u32 flags} at +4
 IOReturn WTLWirelessNativeIf::getCHANNEL(apple80211_channel_data *d) {
-    nativeCall(ctl, 'S', 471);
+    nativeCall(ctl, 'S', MTK_SLOT(471, 467));
     if (!d) return kIOReturnBadArgument;
     mtk_chan c;
     if (!linkChan(&c) || !bandFlag(c.band)) return kNoChannel;
@@ -77,7 +77,7 @@ IOReturn WTLWirelessNativeIf::getCHANNEL(apple80211_channel_data *d) {
 
 // [data+4] = stored power-save mode; never configured here, so 0
 IOReturn WTLWirelessNativeIf::getPOWERSAVE(apple80211_powersave_data *d) {
-    nativeCall(ctl, 'S', 472);
+    nativeCall(ctl, 'S', MTK_SLOT(472, 468));
     if (!d) return kIOReturnBadArgument;
     store<uint32_t>(d, 0, 1);
     store<uint32_t>(d, 4, 0);
@@ -86,7 +86,7 @@ IOReturn WTLWirelessNativeIf::getPOWERSAVE(apple80211_powersave_data *d) {
 
 // [data+8] = current rate in Mb/s; not associated -> not-associated error
 IOReturn WTLWirelessNativeIf::getRATE(apple80211_rate_data *d) {
-    nativeCall(ctl, 'S', 474);
+    nativeCall(ctl, 'S', MTK_SLOT(474, 470));
     if (!d) return kIOReturnBadArgument;
     mtk_link_info li;
     if (!linkUp() || ops->v2.v1.get_link_info(core, &li) != 0 || !li.up) return kNotAssociated;
@@ -101,7 +101,7 @@ IOReturn WTLWirelessNativeIf::getRATE(apple80211_rate_data *d) {
 // [+4] = the HT index (streams included) or the VHT MCS, nothing for legacy; getMCS_VHT for VHT only: [+4] MCS, [+8] NSS,
 // [+0xc] width in MHz, [+0x10] guard interval in ns. All return success when associated.
 IOReturn WTLWirelessNativeIf::getGUARD_INTERVAL(apple80211_guard_interval_data *d) {
-    nativeCall(ctl, 'S', 478);
+    nativeCall(ctl, 'S', MTK_SLOT(478, 474));
     if (!d) return kIOReturnBadArgument;
     mtk_rate_info r;
     if (!rateInfo(&r)) return kNotAssociated;
@@ -111,7 +111,7 @@ IOReturn WTLWirelessNativeIf::getGUARD_INTERVAL(apple80211_guard_interval_data *
 }
 
 IOReturn WTLWirelessNativeIf::getMCS(apple80211_mcs_data *d) {
-    nativeCall(ctl, 'S', 479);
+    nativeCall(ctl, 'S', MTK_SLOT(479, 475));
     if (!d) return kIOReturnBadArgument;
     mtk_rate_info r;
     if (!rateInfo(&r)) return kNotAssociated;
@@ -122,7 +122,7 @@ IOReturn WTLWirelessNativeIf::getMCS(apple80211_mcs_data *d) {
 }
 
 IOReturn WTLWirelessNativeIf::getMCS_VHT(apple80211_mcs_vht_data *d) {
-    nativeCall(ctl, 'S', 482);
+    nativeCall(ctl, 'S', MTK_SLOT(482, 478));
     if (!d) return kIOReturnBadArgument;
     mtk_rate_info r;
     if (!rateInfo(&r)) return kNotAssociated;
@@ -138,7 +138,7 @@ IOReturn WTLWirelessNativeIf::getMCS_VHT(apple80211_mcs_vht_data *d) {
 
 // qword at +0 = 1 (version 1, mode word 0), then +4 |= APPLE80211_M_STA (1) when associated
 IOReturn WTLWirelessNativeIf::getOP_MODE(apple80211_opmode_data *d) {
-    nativeCall(ctl, 'S', 475);
+    nativeCall(ctl, 'S', MTK_SLOT(475, 471));
     if (!d) return kIOReturnBadArgument;
     store<uint32_t>(d, 0, 1);
     store<uint32_t>(d, 4, linkUp() ? 1u : 0u);
@@ -148,7 +148,7 @@ IOReturn WTLWirelessNativeIf::getOP_MODE(apple80211_opmode_data *d) {
 // associated -> 0x30 bytes at +4 cleared, [+0] = 1, number of chains at +4, per-chain RSSI (four dwords) at +0xc, their
 // average at +0x1c; not associated -> not-associated error. The core reports one combined value: chain 0, one chain.
 IOReturn WTLWirelessNativeIf::getRSSI(apple80211_rssi_data *d) {
-    nativeCall(ctl, 'S', 476);
+    nativeCall(ctl, 'S', MTK_SLOT(476, 472));
     if (!d) return kIOReturnBadArgument;
     mtk_status st;
     if (!linkUp() || ops->v2.get_status(core, &st) != 0 || !st.link_up) return kNotAssociated;
@@ -212,12 +212,12 @@ IOReturn fillChannels(const mtk_core_ops_v3 *ops, const mtk_core_ops_v6 *ops6, v
 } // namespace
 
 IOReturn WTLWirelessNativeIf::getSUPPORTED_CHANNELS(apple80211_sup_channel_data *d) {
-    nativeCall(ctl, 'S', 477);
+    nativeCall(ctl, 'S', MTK_SLOT(477, 473));
     return fillChannels(ops, ops6, core, d);
 }
 
 IOReturn WTLWirelessNativeIf::getHW_SUPPORTED_CHANNELS(apple80211_sup_channel_data *d) {
-    nativeCall(ctl, 'S', 496);
+    nativeCall(ctl, 'S', MTK_SLOT(496, 492));
     return fillChannels(ops, ops6, core, d);
 }
 
@@ -227,8 +227,13 @@ IOReturn WTLWirelessNativeIf::getHW_SUPPORTED_CHANNELS(apple80211_sup_channel_da
 // the IOMACAddress property). The core re-registers its firmware station interface with the address, synchronously on
 // its gate, so the private address macOS picks per network is the one the hardware accepts unicast for (I-058: it
 // associated and DHCP never saw a reply while this refused and the firmware kept the factory address).
+// Sequoia (24H32): setMacAddress(ether_addr&), pure in IO80211SkywalkInterface (slot 417), the same contract with one address.
+#if defined(MTK_ABI_SEQUOIA)
+IOReturn WTLWirelessNativeIf::setMacAddress(ether_addr &addresses) {
+#else
 IOReturn WTLWirelessNativeIf::setMacAddress(mloAddrArray &addresses) {
-    nativeCall(ctl, 'S', 470);
+#endif
+    nativeCall(ctl, 'S', MTK_SLOT(470, 417));
     uint8_t m[6];
     memcpy(m, &addresses, 6);
     if ((m[0] & 1) || !(m[0] | m[1] | m[2] | m[3] | m[4] | m[5])) {
@@ -262,7 +267,8 @@ IOReturn WTLWirelessNativeIf::gatedSetMac(OSObject *owner, void *mac, void *rc, 
 // beacon rather than a probe response, 0x4000 rssi valid). 24H32 had the flags at +0x3c and the IEs at +0x40 (itlmt7925Native).
 // Then 0xed, scan done, a 4-byte status (0 = ok), which WCLScanManager::scanDoneEventHandler ends the request with.
 namespace {
-const uint32_t kEventScanResult = 0xc9, kEventScanDone = 0xed, kBeaconHeader = 0x44;   // == WTLWirelessNativeIf::kBeaconHeader
+const uint32_t kEventScanResult = 0xc9, kEventScanDone = 0xed;
+const uint32_t kBeaconHeader = mtkabi::kBeaconHeader;   // 0x44 on Tahoe, 0x40 on Sequoia (<= WTLWirelessNativeIf::kBeaconHeader)
 void buildBeacon(uint8_t *m, const mtk_bss_info &b) {
     const uint32_t ieLen = b.ie_len > MTK_BSS_IE_MAX ? MTK_BSS_IE_MAX : b.ie_len;
     const uint8_t ssidLen = b.ssid_len > 32 ? 32 : b.ssid_len;
@@ -276,7 +282,7 @@ void buildBeacon(uint8_t *m, const mtk_bss_info &b) {
     store<int32_t>(m, 0x30, b.rssi);
     store<uint16_t>(m, 0x38, b.beacon_interval);
     store<uint16_t>(m, 0x3a, b.capability);
-    store<uint32_t>(m, 0x40, 2u | (b.probe_resp ? 0u : 0x80u) | (b.rssi ? 0x4000u : 0u));
+    store<uint32_t>(m, mtkabi::kBeaconFlags, 2u | (b.probe_resp ? 0u : 0x80u) | (b.rssi ? 0x4000u : 0u));
     memcpy(m + kBeaconHeader, b.ie, ieLen);
 }
 } // namespace
@@ -306,7 +312,7 @@ IOReturn WTLWirelessNativeIf::gatedSnapBss(OSObject *owner, void *count, void *,
 // The core scans every channel of its domain with a wildcard probe; a requested SSID only filters what is reported. A scan the
 // core refuses (one already running, or the radio busy with a join) still answers from the cache.
 IOReturn WTLWirelessNativeIf::setWCL_SCAN_REQ(apple80211ScanRequest *d) {
-    nativeCall(ctl, 'S', 603);
+    nativeCall(ctl, 'S', MTK_SLOT(603, 594));
     if (!d) return kIOReturnBadArgument;
     if (!bound || !ops || !core || !coreLoop) return kIOReturnNotReady;
     uint32_t ssidLen = load<uint32_t>(d, 0x1c);
@@ -327,7 +333,7 @@ IOReturn WTLWirelessNativeIf::setWCL_SCAN_REQ(apple80211ScanRequest *d) {
 }
 
 IOReturn WTLWirelessNativeIf::setWCL_SCAN_ABORT(void *) {
-    nativeCall(ctl, 'S', 598);
+    nativeCall(ctl, 'S', MTK_SLOT(598, 589));
     IOLockLock(lock);
     bool was = scanActive;
     scanActive = false;
@@ -442,14 +448,14 @@ bool WTLWirelessNativeIf::currentBss(uint8_t bssid[6]) {
 }
 
 IOReturn WTLWirelessNativeIf::getWCL_LOW_LATENCY_INFO(apple80211_low_latency_info *d) {
-    nativeCall(ctl, 'S', 525);
+    nativeCall(ctl, 'S', MTK_SLOT(525, 521));
     if (!d) return kIOReturnError;
     store<uint32_t>(d, 0, 0);                   // no low-latency session: the join may go ahead
     return kIOReturnSuccess;
 }
 
 IOReturn WTLWirelessNativeIf::setWCL_ASSOCIATE(apple80211AssocCandidates *d) {
-    nativeCall(ctl, 'S', 604);
+    nativeCall(ctl, 'S', MTK_SLOT(604, 595));
     if (!d) return kIOReturnBadArgument;
     if (!bound || !ops || !core || !coreLoop) return kIOReturnNotReady;
     const uint8_t *b = (const uint8_t *)d;
@@ -468,7 +474,8 @@ IOReturn WTLWirelessNativeIf::setWCL_ASSOCIATE(apple80211AssocCandidates *d) {
     // entries of 18 bytes from +0x21c, the BSSID first (N-146 traced the associated AP's address there),
     // then the channel and a u16. The Family picks the BSS; a join that ignores it lands on the core's own favourite and
     // the Family re-joins forever (N-145: it wanted channels 52, 11, 108 in turn while the core sat on 52).
-    uint32_t nCand = load<uint32_t>(b, 0x214);
+    // Sequoia: the offsets are unverified there (the 24H32 reference let its core pick); mtknativecand=1 turns it on.
+    uint32_t nCand = useCandidate ? load<uint32_t>(b, 0x214) : 0;
     if (nCand >= 1) {
         memcpy(p.bssid, b + 0x21c, 6);
         if ((p.bssid[0] & 1) || !(p.bssid[0] | p.bssid[1] | p.bssid[2] | p.bssid[3] | p.bssid[4] | p.bssid[5])) bzero(p.bssid, 6);
@@ -492,7 +499,7 @@ IOReturn WTLWirelessNativeIf::setWCL_ASSOCIATE(apple80211AssocCandidates *d) {
 }
 
 IOReturn WTLWirelessNativeIf::setWCL_LEAVE_NETWORK(apple80211_leave_network *) {
-    nativeCall(ctl, 'S', 592);
+    nativeCall(ctl, 'S', MTK_SLOT(592, 583));
     IOLockLock(lock);
     joinActive = false;
     leaves++;
@@ -502,8 +509,12 @@ IOReturn WTLWirelessNativeIf::setWCL_LEAVE_NETWORK(apple80211_leave_network *) {
     return kIOReturnSuccess;
 }
 
+#if defined(MTK_ABI_SEQUOIA)
+IOReturn WTLWirelessNativeIf::setWCL_JOIN_ABORT(void *) {
+#else
 IOReturn WTLWirelessNativeIf::setWCL_JOIN_ABORT(apple80211_wcl_abort_join *) {
-    nativeCall(ctl, 'S', 601);
+#endif
+    nativeCall(ctl, 'S', MTK_SLOT(601, 592));
     IOLockLock(lock);
     bool was = joinActive;
     joinActive = false;
@@ -515,19 +526,19 @@ IOReturn WTLWirelessNativeIf::setWCL_JOIN_ABORT(apple80211_wcl_abort_join *) {
 
 // Link-path requests that configure features the core does not have: accepted and counted (a failure here makes
 // WCLNetManager::setCurrentBSS abort the link-up and leave the network).
-IOReturn WTLWirelessNativeIf::setWCL_LINK_UP_DONE(void *) { nativeCall(ctl, 'S', 606); if (miscTraced++ < 12) nativeTrace(ctl, "wcl:link up done"); return kIOReturnSuccess; }
-IOReturn WTLWirelessNativeIf::setWCL_TRIGGER_CC(triggerCC *) { nativeCall(ctl, 'S', 602); return kIOReturnSuccess; }
-IOReturn WTLWirelessNativeIf::setWCL_SET_SCAN_HOME_AWAY_TIME(scanHomeAndAwayTime *) { nativeCall(ctl, 'S', 607); return kIOReturnSuccess; }
-IOReturn WTLWirelessNativeIf::setWCL_QOS_PARAMS(apple80211_wcl_qos_params *) { nativeCall(ctl, 'S', 605); return kIOReturnSuccess; }
-IOReturn WTLWirelessNativeIf::setWCL_ARP_MODE(apple80211_wcl_arp_mode *) { nativeCall(ctl, 'S', 600); return kIOReturnSuccess; }
-IOReturn WTLWirelessNativeIf::setWCL_SET_ROAM_LOCK(apple80211_set_roam_lock *) { nativeCall(ctl, 'S', 594); return kIOReturnSuccess; }
-IOReturn WTLWirelessNativeIf::setWCL_WNM_OPS(apple80211_wcl_wnm_config_t *d) { nativeCall(ctl, 'S', 628); return d ? kIOReturnSuccess : kIOReturnError; }
-IOReturn WTLWirelessNativeIf::setWCL_UPDATE_FAST_LANE(apple80211_fastlane *d) { nativeCall(ctl, 'S', 635); return d ? kIOReturnSuccess : kIOReturnBadArgument; }
+IOReturn WTLWirelessNativeIf::setWCL_LINK_UP_DONE(void *) { nativeCall(ctl, 'S', MTK_SLOT(606, 597)); if (miscTraced++ < 12) nativeTrace(ctl, "wcl:link up done"); return kIOReturnSuccess; }
+IOReturn WTLWirelessNativeIf::setWCL_TRIGGER_CC(triggerCC *) { nativeCall(ctl, 'S', MTK_SLOT(602, 593)); return kIOReturnSuccess; }
+IOReturn WTLWirelessNativeIf::setWCL_SET_SCAN_HOME_AWAY_TIME(scanHomeAndAwayTime *) { nativeCall(ctl, 'S', MTK_SLOT(607, 598)); return kIOReturnSuccess; }
+IOReturn WTLWirelessNativeIf::setWCL_QOS_PARAMS(apple80211_wcl_qos_params *) { nativeCall(ctl, 'S', MTK_SLOT(605, 596)); return kIOReturnSuccess; }
+IOReturn WTLWirelessNativeIf::setWCL_ARP_MODE(apple80211_wcl_arp_mode *) { nativeCall(ctl, 'S', MTK_SLOT(600, 591)); return kIOReturnSuccess; }
+IOReturn WTLWirelessNativeIf::setWCL_SET_ROAM_LOCK(apple80211_set_roam_lock *) { nativeCall(ctl, 'S', MTK_SLOT(594, 585)); return kIOReturnSuccess; }
+IOReturn WTLWirelessNativeIf::setWCL_WNM_OPS(apple80211_wcl_wnm_config_t *d) { nativeCall(ctl, 'S', MTK_SLOT(628, 620)); return d ? kIOReturnSuccess : kIOReturnError; }
+IOReturn WTLWirelessNativeIf::setWCL_UPDATE_FAST_LANE(apple80211_fastlane *d) { nativeCall(ctl, 'S', MTK_SLOT(635, 627)); return d ? kIOReturnSuccess : kIOReturnBadArgument; }
 
 // 0x1c6 apple80211_wcl_update_link_state: +0 bssid, +6 u8 up, +7/+8 flags, +0xc u32 down reason. Apple's driver drives its net
 // adapter's link from it; ours follows the core's association, so it is recorded.
 IOReturn WTLWirelessNativeIf::setWCL_LINK_STATE_UPDATE(apple80211_wcl_update_link_state *d) {
-    nativeCall(ctl, 'S', 468);
+    nativeCall(ctl, 'S', MTK_SLOT(468, 600));
     if (!d) return kIOReturnBadArgument;
     const uint8_t *b = (const uint8_t *)d;
     if (linkStateTraced++ < 8) nativeTrace(ctl, "wcl:link state up=%u flags=%u/%u reason=%u radio=%u", b[6], b[7], b[8], load<uint32_t>(b, 0xc), linkUp());
@@ -535,7 +546,7 @@ IOReturn WTLWirelessNativeIf::setWCL_LINK_STATE_UPDATE(apple80211_wcl_update_lin
 }
 
 IOReturn WTLWirelessNativeIf::getWCL_TRAFFIC_COUNTERS(apple80211_wcl_traffic_counters *d) {
-    nativeCall(ctl, 'S', 527);
+    nativeCall(ctl, 'S', MTK_SLOT(527, 523));
     if (!d) return kIOReturnError;
     bzero(d, 0x38);
     return kIOReturnSuccess;
@@ -543,7 +554,7 @@ IOReturn WTLWirelessNativeIf::getWCL_TRAFFIC_COUNTERS(apple80211_wcl_traffic_cou
 
 // The current BSS as a beacon message (0x844 bytes at most: the 0x44 header and the IEs), 0xe00002bc while not associated.
 IOReturn WTLWirelessNativeIf::getWCL_BSS_INFO(apple80211_beacon_msg *d) {
-    nativeCall(ctl, 'S', 526);
+    nativeCall(ctl, 'S', MTK_SLOT(526, 522));
     if (!d) return kIOReturnBadArgument;
     uint8_t bssid[6];
     if (!currentBss(bssid) || !beaconMsg) return kIOReturnError;
@@ -570,13 +581,13 @@ inline uint16_t vhtMapAnd(uint16_t a, uint16_t b) {
 } // namespace
 
 IOReturn WTLWirelessNativeIf::getWCL_EXTENDED_BSS_INFO(apple80211_extended_bss_info *d) {
-    nativeCall(ctl, 'S', 533);
+    nativeCall(ctl, 'S', MTK_SLOT(533, 530));
     if (!d) return kIOReturnError;
     uint8_t *b = (uint8_t *)d;
     static const uint32_t verOff[4] = {0, 0xbc, 0xcc, 0xd4};
     uint32_t ver[4];
     for (int i = 0; i < 4; i++) ver[i] = load<uint32_t>(b, verOff[i]);
-    bzero(b, 0x214);
+    bzero(b, mtkabi::kExtBssSize);              // 0x214 on Tahoe, 0x1e0 on Sequoia
     for (int i = 0; i < 4; i++) store<uint32_t>(b, verOff[i], ver[i]);
     store<uint16_t>(b, 0xcc + 4, 0xffff);
     store<uint16_t>(b, 0xd4 + 4, 0xffff);
@@ -601,14 +612,14 @@ IOReturn WTLWirelessNativeIf::getWCL_EXTENDED_BSS_INFO(apple80211_extended_bss_i
             } else if (id == 191 && l >= 12 && curBss->channel > 14) {               // VHT Capabilities: RX MCS map
                 store<uint16_t>(b, 0xcc + 4, vhtMapAnd(load<uint16_t>(v, 4), vhtOurMap(ctl->chip().nss)));
             } else if (id == 0x30 && !rsnLen && l + 2u <= 0x101) {                   // RSN
-                memcpy(b + 0x113, ie + p, l + 2u);
+                memcpy(b + mtkabi::kExtBssRsn, ie + p, l + 2u);
                 rsnLen = l + 2u;
             } else if (id == 0xdd && !wpa && l >= 4 && v[0] == 0x00 && v[1] == 0x50 && v[2] == 0xf2 && v[3] == 0x01 && l + 2u <= 0x101) {
                 wpa = ie + p;                                                        // WPA vendor element
                 wpaLen = l + 2u;
             }
         }
-        if (!rsnLen && wpa) { memcpy(b + 0x113, wpa, wpaLen); rsnLen = wpaLen; }
+        if (!rsnLen && wpa) { memcpy(b + mtkabi::kExtBssRsn, wpa, wpaLen); rsnLen = wpaLen; }
         store<uint16_t>(b, 4, (uint16_t)nrates);
     }
     if (extBssTraced++ < 4) nativeTrace(ctl, "wcl:extended bss info rates=%u rsn=%u", nrates, rsnLen);
@@ -708,8 +719,8 @@ void WTLWirelessNativeIf::serviceJoin() {
             uint32_t interval = (found && curBss->beacon_interval) ? curBss->beacon_interval : 100;
             uint32_t perSecond = (1000u * 1000u / 1024u) / interval + 1;               // beacons in the last second, at least 1
             store<uint32_t>(m, 0x54, perSecond);
-            postEvent(kEventBeaconCounter, m, sizeof(m));
-            if (lqmMsg) {
+            if (tahoeEvents) postEvent(kEventBeaconCounter, m, sizeof(m));
+            if (lqmMsg && tahoeEvents) {
                 bzero(lqmMsg, kLqmSize);
                 lqmMsg[0] = 1;
                 store<int32_t>(lqmMsg, 4, found ? curBss->rssi : -60);
@@ -771,7 +782,40 @@ void WTLWirelessNativeIf::serviceJoin() {
 
 // 0x22d DBRG_ENTROPY (slot 662, new on 25G241): the Family hands the driver entropy for its random generator; ours has no DRBG,
 // the bytes are accepted and dropped (a refusal is counted against the join path).
-IOReturn WTLWirelessNativeIf::setDBRG_ENTROPY(apple80211_drbg_entropy *d) { nativeCall(ctl, 'S', 662); return d ? kIOReturnSuccess : kIOReturnBadArgument; }
+// What AppleBCMWLANCore posts once its firmware runs (24H32): 0x37 driver availability (0xf8 bytes, +0 = 3, +8 = 1 available,
+// +0x10 = 0xe0821803 power on; WCLSystemStateManager::driverAvailableEventHandler -> SSM_EVENT_DRIVER_AVAILABLE, state
+// CAN_SEND), then 0x31 interfaces reset complete (u32 1; resetInterfaceHandler -> SSM_EVENT_FW_LOADED -> the 0x1a0003
+// "firmware loaded" notification). WCLConfigManager then loads the card capabilities, the hardware MAC (GET 0x167) and the
+// channel info, and sets the country code it has.
+void WTLWirelessNativeIf::postWclReady() {
+    wclReadyPending = false;
+    uint8_t avail[0xf8];
+    bzero(avail, sizeof(avail));
+    store<uint32_t>(avail, 0x00, 3);
+    store<uint32_t>(avail, 0x08, 1);
+    store<uint32_t>(avail, 0x10, 0xe0821803u);
+    postEvent(0x37, avail, sizeof(avail));
+    uint32_t complete = 1;
+    postEvent(0x31, &complete, sizeof(complete));
+    wclReadyPosts++;
+    if (miscTraced++ < 12) nativeTrace(ctl, "wcl:driver available + interfaces ready posted (%u)", wclReadyPosts);
+}
+
+#if defined(MTK_ABI_SEQUOIA)
+// 0x167 HW_ADDR (slot 507 on 24H32): u32 version 1, the factory address at +4 (AppleBCMWLANCore::getHW_ADDR). WCL keeps it as
+// the address a join without a private address asks for.
+IOReturn WTLWirelessNativeIf::getHW_ADDR(apple80211_hw_mac_address *d) {
+    nativeCall(ctl, 'S', 507);
+    if (!d || !ctl) return kIOReturnBadArgument;
+    store<uint32_t>(d, 0, 1);
+    memcpy((uint8_t *)d + 4, ctl->stationAddress(), 6);
+    const uint8_t *m = ctl->stationAddress();
+    if (miscTraced++ < 12) nativeTrace(ctl, "wcl:hw addr %02x:%02x:%02x:%02x:%02x:%02x", m[0], m[1], m[2], m[3], m[4], m[5]);
+    return kIOReturnSuccess;
+}
+#endif
+
+IOReturn WTLWirelessNativeIf::setDBRG_ENTROPY(apple80211_drbg_entropy *d) { nativeCall(ctl, 'S', MTK_SLOT(662, 654)); return d ? kIOReturnSuccess : kIOReturnBadArgument; }
 
 // ---- everything else: generated stubs (unsupported, counted per slot) ---------------------------------------------------------
 #define MTK_IFACE_DEFS

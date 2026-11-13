@@ -5,6 +5,7 @@
 #include "WTLWirelessNative.hpp"
 #include "MtkNativeTrace.hpp"
 #include <IOKit/IOLib.h>
+#include <pexpert/pexpert.h>
 #include <IOKit/network/IONetworkMedium.h>
 #include <net/ethernet.h>
 #include <net/kpi_interface.h>
@@ -60,6 +61,13 @@ bool WTLWirelessNativeIf::init() {
     statusBuf = (struct mtk_status *)IOMalloc(sizeof(struct mtk_status));
     curBss = (struct mtk_bss_info *)IOMalloc(sizeof(struct mtk_bss_info));
     lqmMsg = (uint8_t *)IOMalloc(0x1dc);
+    uint32_t v = tahoeEvents;
+    if (PE_parse_boot_argn("mtknativelqm", &v, sizeof(v))) tahoeEvents = v != 0;
+    v = wclReadyEnabled;
+    if (PE_parse_boot_argn("mtkwclready", &v, sizeof(v))) wclReadyEnabled = v != 0;
+    wclReadyPending = wclReadyEnabled;   // once after start, from the first control poll with the data path up
+    v = useCandidate;
+    if (PE_parse_boot_argn("mtknativecand", &v, sizeof(v))) useCandidate = v != 0;
     return lock != nullptr && bssSnap != nullptr && beaconMsg != nullptr;
 }
 
@@ -598,9 +606,14 @@ void WTLWirelessNativeIf::pollControl() {
     speed = radioSpeed;
     if (dirty && up) txSpace = true;     // frames refused while the link was down are asked for again
     IOLockUnlock(lock);
+    if (wclReadyPending && dpEnabled) postWclReady();
     if (dirty && ctl) {
         ctl->setLinkStatus(kIONetworkLinkValid | (up ? kIONetworkLinkActive : 0), up ? ctl->getSelectedMedium() : nullptr, up ? speed : 0);
+#if defined(MTK_ABI_SEQUOIA)
+        bool ok = IO80211InfraInterface::setLinkState((IO80211LinkState)(up ? 2 : 1), 0, false, 0);
+#else
         bool ok = IO80211InfraInterface::setLinkState((IO80211LinkState)(up ? 2 : 1), 0, false, 0, 0);
+#endif
         nativeTrace(ctl, "dp:link=%u family=%u state=%u", up, ok, IO80211InfraInterface::linkState());
         setProperty("MtkNativeRadioLink", up);
     }
