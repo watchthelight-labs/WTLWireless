@@ -1,0 +1,24 @@
+{
+  "build": "24H32",
+  "product": "15.8.1",
+  "xnu": "xnu-11417.140.69.712.69~1",
+  "kernel_version": "Darwin Kernel Version 24.6.0: Sun Aug 23 20:30:56 PDT 2026; root:xnu-11417.140.69.712.69~1/RELEASE_X86_64",
+  "kc_sha256": "cd013c14a7f21dbb8181fb06c44e079de8646b6a674abe21f6e47f42e8979af3",
+  "sizes": {
+    "IO80211Controller": 296,
+    "IO80211WorkQueue": 80,
+    "IO80211CommandGate": 24,
+    "IOSkywalkInterface": 176,
+    "IOSkywalkNetworkInterface": 208,
+    "IOSkywalkEthernetInterface": 272,
+    "IO80211SkywalkInterface": 280,
+    "IO80211InfraInterface": 288,
+    "IO80211InfraProtocol": 288,
+    "IOSkywalkPacketBufferPool": 184,
+    "IOSkywalkPacketQueue": 216,
+    "IOSkywalkTxSubmissionQueue": 360,
+    "IOSkywalkRxSubmissionQueue": 320,
+    "IOSkywalkTxCompletionQueue": 296,
+    "IOSkywalkRxCompletionQueue": 312
+  }
+}

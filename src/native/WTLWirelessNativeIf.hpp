@@ -16,6 +16,7 @@
 #pragma once
 #include "IO80211InfraProtocol.h"
 #include "MtkCoreApi.h"
+#include "MtkAbiCompat.h"
 #include "skywalk_min.h"
 #include <IOKit/IOLocks.h>
 #include <IOKit/IOTimerEventSource.h>
@@ -118,7 +119,7 @@ private:
     uint8_t scanSsid[32] = {};
     struct mtk_bss_info *bssSnap = nullptr;  // kBssSnap entries, filled under the core gate
     uint8_t *beaconMsg = nullptr;            // kBeaconHeader + MTK_BSS_IE_MAX
-    static const uint32_t kBssSnap = 128, kBeaconHeader = 0x44, kScanTimeoutPolls = 2500;   // 25 s at the 10 ms poll
+    static const uint32_t kBssSnap = 128, kBeaconHeader = mtkabi::kBeaconHeaderMax, kScanTimeoutPolls = 2500;   // 25 s at the 10 ms poll
     void serviceScan();
     void deliverScanResults();
     void postEvent(uint32_t code, void *data, unsigned long length);
@@ -138,6 +139,15 @@ private:
     uint32_t beaconReports = 0;              // 0xaf events posted (the Family's missed-beacons check)
     uint8_t *lqmMsg = nullptr;               // 0x1dc bytes, the 0x27 link quality update posted with each beacon report
     uint32_t lqmTick = 0;
+    bool tahoeEvents = mtkabi::kTahoeOnlyEventsDefault;   // post 0x27 / 0xaf (boot-arg mtknativelqm overrides)
+    bool useCandidate = mtkabi::kTahoeOnlyEventsDefault;  // join the BSSID macOS picked (boot-arg mtknativecand overrides)
+    bool wclReadyEnabled = mtkabi::kWclReadyDefault;     // see MtkAbiCompat.h (boot-arg mtkwclready overrides)
+    bool wclReadyPending = false;                         // post 0x37 + 0x31 from the next control poll
+    uint32_t wclReadyPosts = 0;
+    void postWclReady();
+public:
+    void requestWclReady() { if (wclReadyEnabled) wclReadyPending = true; }   // controller: power on
+private:
     int32_t lqReported = -3;               // last ifnet link quality given to setLQM; -3 = never
     void reportLinkQuality(int32_t lq);
     uint32_t assocTraced = 0, linkStatusTraced = 0, linkStateTraced = 0, bssInfoTraced = 0, extBssTraced = 0, miscTraced = 0;
@@ -152,9 +162,11 @@ private:
     static IOReturn gatedDisconnect(OSObject *owner, void *, void *, void *, void *);
     static IOReturn gatedStatus(OSObject *owner, void *, void *, void *, void *);
     static IOReturn gatedFindBss(OSObject *owner, void *bssid, void *found, void *, void *);
+#if !defined(MTK_ABI_SEQUOIA)
 public:
     IOReturn setWCL_LINK_STATE_UPDATE(apple80211_wcl_update_link_state *a1) override;   // IO80211InfraInterface slot 468
 private:
+#endif                                       // on Sequoia it is one of the protocol's pure handlers (iface_stubs.inc, slot 600)
     IOWorkLoop *coreLoop = nullptr;          // retained
     IOWorkLoop *queued = nullptr;            // the work queue the event sources were added to (retained)
     IOSkywalkPacketBufferPool *pool = nullptr;

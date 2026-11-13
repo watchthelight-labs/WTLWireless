@@ -393,6 +393,12 @@ headers for another build. The build then checks that every undefined symbol is 
 collection (`tools/kcabi/linkcheck.py`). `ABI=25G416 ./build.sh` picks a header set by hand; `NO_KMUTIL=1` and
 `NO_LINKCHECK=1` skip the two steps that read the installed kernel collections.
 
+macOS 15 Sequoia has the older IO80211 generation (190 request slots, other payload layouts): `ABI=24H32 ./build.sh` builds
+the Wi-Fi menu part against `abi/24H32/` with `MTK_ABI_SEQUOIA` (`src/native/MtkAbiCompat.h`). That part's allow-list holds
+only 24H32 (kernel string `Darwin Kernel Version 24.6.0` plus the class sizes); the headers were checked against the 15.8.1
+dump. For a Mac that boots both, build the bundle twice and give each its own OpenCore entries (`MaxKernel 24.99.99` for the
+Sequoia one, `MinKernel 25.0.0` for the Tahoe one).
+
 The firmware in `firmware/mt7925/` is checked against `firmware/mt7925/SHA256SUMS` and embedded in the binaries. The
 build is reproducible: the 0.14.0 release binaries are what `./build.sh` gives from the 0.14.0 tag with Apple clang
 21.0.0 (clang-2100.1.1.101), and their sha256 values are in the release notes and in `SHA256SUMS.txt` in the zip.

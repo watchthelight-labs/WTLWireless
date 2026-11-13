@@ -4,7 +4,8 @@
 // from one build's kernel collection (abi/<build>/), so it may only engage on a build those headers were verified against.
 // probe() checks two things from the kext's own MtkNativeAbi property (filled from abi/<build>/abi.json by build.sh and
 // extended by tools/kcabi/refresh.sh after an update):
-//   1. the running kernel's version string (libkern/version.h) contains the xnu tag of one allow-listed build;
+//   1. the running kernel's version string (libkern/version.h) contains the xnu tag of one allow-listed build (key Xnu), or,
+//      for a build whose xnu tag was not recorded (the 24H32 dump), the kernel string given under key Kernel;
 //   2. every class size recorded for that build equals OSMetaClass::getClassSize() of the live class.
 // Anything else declines, and the core starts its Ethernet front end instead (Wi-Fi keeps working, only the native UI is
 // missing until the headers are regenerated).
@@ -46,6 +47,7 @@ inline MtkNativeAbiResult mtkNativeAbiCheck(const char *kernelVersion, OSDiction
     for (unsigned i = 0; i < builds->getCount(); i++) {
         OSDictionary *b = OSDynamicCast(OSDictionary, builds->getObject(i));
         OSString *xnu = b ? OSDynamicCast(OSString, b->getObject("Xnu")) : nullptr;
+        if (b && (!xnu || !xnu->getLength())) xnu = OSDynamicCast(OSString, b->getObject("Kernel"));
         OSString *name = b ? OSDynamicCast(OSString, b->getObject("Build")) : nullptr;
         OSDictionary *sizes = b ? OSDynamicCast(OSDictionary, b->getObject("Sizes")) : nullptr;
         if (!xnu || !name || !sizes || !xnu->getLength() || !mtkNativeContains(kernelVersion, xnu->getCStringNoCopy())) continue;

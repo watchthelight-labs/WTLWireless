@@ -8,6 +8,7 @@
 #include "WTLWirelessNativeIf.hpp"
 #include "MtkNativeAbi.hpp"
 #include "MtkNativeTrace.hpp"
+#include "MtkAbiCompat.h"
 #include <IOKit/IOLib.h>
 #include <IOKit/network/IONetworkMedium.h>
 #include <pexpert/pexpert.h>
@@ -40,6 +41,10 @@ bool commandAllowed(int cmd) {
     case 0x170: case 0x22d:                                 // SET_MAC_ADDRESS (the private address, asked before every join; N-141 died here), DBRG_ENTROPY
     case 0x37: case 0x39: case 0xc3:                        // GUARD_INTERVAL, MCS, MCS_VHT (native #1: what Wi-Fi details show)
         return true;
+#if defined(MTK_ABI_SEQUOIA)
+    case 0x167:                                             // HW_ADDR: WCLConfigManager::loadHwMacAddr after the 0x31 event
+        return true;
+#endif
     default:
         return false;
     }
@@ -258,6 +263,7 @@ bool WTLWirelessNative::start(IOService *provider) {
     rel(media);
     nativeTrace(this, "ctl:media auto=%u", mediaOK);
     setProperty("MtkNativeVersion", MTK_NATIVE_VERSION);
+    setProperty("MtkNativeAbiGeneration", MTK_ABI_GENERATION);
     registerService();
     OSBoolean *withIf = OSDynamicCast(OSBoolean, getProperty("MtkNativeInterface"));
     uint32_t wantIf = withIf && withIf->isTrue();
@@ -478,6 +484,7 @@ IOReturn WTLWirelessNative::setPOWER(IO80211SkywalkInterface *, apple80211_power
     uint32_t want;
     memcpy(&want, (const uint8_t *)data + 8, sizeof(want));
     if (want != powerState) {
+        if (want && !powerState && iface) iface->requestWclReady();   // as AppleBCMWLANCore::powerOn: WCL reloads its config
         powerState = want;
         nativeTrace(this, "ioctl:setPOWER=%u (recorded only)", want);
     }
