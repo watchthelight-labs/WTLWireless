@@ -6,7 +6,7 @@
 #   make SDK=/path/to/MacKernelSDK
 NAME         := WTLWireless
 KEXT_ID      := org.watchthelight.WTLWireless
-KEXT_VERSION := 0.15.3
+KEXT_VERSION := 0.15.4
 
 SDK    ?= $(CURDIR)/MacKernelSDK
 LD     := LD_LIBRARY_PATH=/opt/dispatch/lib /opt/cctools/bin/x86_64-apple-darwin-ld

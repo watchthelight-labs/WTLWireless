@@ -81,7 +81,7 @@ Both projects are good work and they cover cards this one does not. The table is
 |---|---|---|---|
 | Cards | MT7925, RZ717 | MT7921, MT7921K/RZ608, MT7922, RZ616 | MT7922/RZ616 (pengubow), MT7921/RZ608 (mnnobre), MT7921, RZ608 and MT7922/RZ616 ([Arxusion](https://github.com/Arxusion/AirportMtkWlan)) |
 | How you join a network | macOS's own Wi-Fi menu and System Settings; networks saved by macOS, auto-join at boot, private address per network | the card is an Ethernet port; `mtkwifi join` on the command line, HeliPort "not tested yet", or the SimpleMTK menu-bar client some forks ship | macOS's own Wi-Fi menu (experimental) |
-| macOS | Sequoia 15 and Tahoe 26 for the driver; the Wi-Fi menu on Tahoe 26.7.1 (25G241), 26.7.2 (25G332), 26.7.3 (25G342) and the 26.7.3 developer beta 25G416 | "tested in the macOS 15 installer" | macOS 15.2 to 15.x; the Arxusion line (v1.5.1) says Tahoe 26 |
+| macOS | Sequoia 15 and Tahoe 26 for the driver; the Wi-Fi menu on Tahoe 26.7.1 (25G241), 26.7.2 (25G332), 26.7.3 (25G342) and the 26.7.3 developer beta 25G416, and on Sequoia 15.8.1 (24H32) as its own build | "tested in the macOS 15 installer" | macOS 15.2 to 15.x; the Arxusion line (v1.5.1) says Tahoe 26 |
 | Measured | 190.8 / 174.8 Mb/s, 16 ms idle ping (0.9.0, Ethernet front end); the Wi-Fi menu part holds the link, auto-joins at boot | not stated on the page | 83 / 44 Mb/s on a G713PV |
 | 802.11 | HT/VHT at 80 MHz; no ax yet | n/ac/ax, 40/80 MHz | as SimpleMtkWlan |
 | WPA2-PSK | code passes the host tests; joined on air on the Legion (WPA2 Personal, from the Wi-Fi menu, at boot) and by a tester on an RZ717 board | yes | yes |
@@ -96,6 +96,7 @@ Everything below was measured on one laptop (Legion 5 15IAX10, OpenCore 1.0.8) o
 
 | Version | What it adds | Tested on | Result |
 |---|---|---|---|
+| 0.15.4 | nothing new in the core; released with the Wi-Fi menu part for macOS 15 Sequoia (below) | macOS 26.7.3 developer beta (25G416), MT7925, the same WPA2 range extender network | lease 47 s into the boot check, `MtkState` "W6 pass: en1 passing traffic", ping without loss |
 | 0.15.3 | takes frames the firmware already converted to Ethernet when the hardware decrypted them (they were dropped on WPA2 networks before). Fixes "joined, but no IP address" on an access point that sends broadcast frames that way and DHCP replies as broadcast | macOS 26.7.3 developer beta (25G416), MT7925, a WPA2 range extender network | lease 38 s into the boot check, 11ac 80 MHz at 866 Mbit/s; over a million frames received in 8 minutes, none of the converted ones dropped (`MtkW6RxTransInfo`), no deauth |
 | 0.15.0 | an MT7927 row in the chip table, off unless boot-arg `mtk7927=1` is set; without it the card is only reported. Nothing changes on an MT7925 | macOS 26.7.3 developer beta (25G416), MT7925 | joins the saved network at boot as before (5 GHz, 80 MHz, MCS 9, 2 streams, 866 Mbit/s); `MtkChipName` `MT7925`; the MT7927 path ran only in the host harness |
 | 0.14.0 | one kext: the driver, the Wi-Fi menu part and the Bluetooth loader in `WTLWireless.kext`, under new names and one version. Nothing changes on the air | macOS 26.7.3 developer beta (25G416) | Wi-Fi joins at boot through the Wi-Fi menu part inside the bundle, same channel list and link as 0.13.0 (5 GHz, 80 MHz, MCS 9, 2 streams, 866 Mbit/s); Bluetooth `ready` in 1.3 s, controller on |
@@ -121,6 +122,7 @@ OpenCore 1.0.8) on macOS 26.7.1 (25G241), 26.7.2 (25G332), 26.7.3 (25G342) and t
 
 | Version | What it does | Result |
 |---|---|---|
+| 0.15.4 | a build for macOS 15.8.1 Sequoia (24H32): `ABI=24H32 ./build.sh`, by [Elezorn](https://github.com/Elezorn) (pull request 12). On Tahoe it answers `getHW_ADDR` and reports `MtkNativeAbiGeneration`; nothing else changes there | Tahoe: joins the saved network at boot on 25G416, `MtkNativeAbiGeneration` = `tahoe`. Sequoia: Elezorn's Dell Latitude 5421 on 24H32 (Wi-Fi menu, scans, WPA2 joins with and without a private address, also in Recovery); the release zip holds the Tahoe build, the Sequoia one is built from source |
 | 0.15.3 | noise and SNR in the link quality report behind boot-arg `mtknativelqmsnr=1` (off by default, not run yet); otherwise as 0.15.0 | joins the saved network at boot on 25G416, 5g44/80 at 866 Mbps |
 | 0.15.0 | version only; same code as 0.14.0 | joins the saved network at boot on 25G416, 5g157/80 at 866 Mbps |
 | 0.14.0 | moved into the bundle as `WTLWirelessNative.kext`; same code as 0.4.17 | joins the saved network at boot on 25G416, 5g44/80 at 866 Mbps; `MtkNativeCoreOps` 6 |
@@ -151,6 +153,7 @@ Versions before 0.14.0 in this table are those of `MtkBt.kext`.
 
 | Version | Tested on | Result |
 |---|---|---|
+| 0.15.4 | Legion 5 15IAX10, macOS 26.7.3 developer beta (25G416), OpenCore 1.0.8 | version only; `MtkBtState` = `ready`, Bluetooth on. Pairing and audio were not repeated |
 | 0.15.3 | Legion 5 15IAX10, macOS 26.7.3 developer beta (25G416), OpenCore 1.0.8 | version only; `MtkBtState` = `ready`. Pairing and audio were not repeated |
 | 0.15.0 | Legion 5 15IAX10, macOS 26.7.3 developer beta (25G416), OpenCore 1.0.8 | version only; `MtkBtState` = `ready`, controller on. An MT7927's Bluetooth is not loaded |
 | 0.14.0 | Legion 5 15IAX10, macOS 26.7.3 developer beta (25G416), OpenCore 1.0.8 | moved into the bundle as `WTLWirelessBt.kext`; same code as 0.2.4. `MtkBtState` = `ready` in 1251 ms, controller on, known devices still listed. Pairing and audio were not repeated for this release |
@@ -165,7 +168,7 @@ The MT7925 has two things `bluetoothd` on macOS Tahoe does not expect (an LE con
 ## What it can't do
 
 - The Wi-Fi menu part runs on the macOS builds it was built against (26.7.1 to 26.7.3 and the 26.7.3 developer beta 25G416). On any other build macOS sees an Ethernet card and you pick networks with the `mtkwifi` command line tool: no Wi-Fi icon and no Wi-Fi pane in System Settings until a release for that build is out.
-- On a macOS build the Wi-Fi menu part does not cover (26.0 to 26.6, Sequoia), xiaoyizpast's [WiFi Menu](https://github.com/xiaoyizpast/Hackintosh-OMEN-8f06/tree/main/wifi-menu) puts `mtkwifi` behind a menu bar icon: scan, join, disconnect ([#7](https://github.com/watchthelight-labs/WTLWireless/issues/7)). It is a third-party app (MIT), tested by its author on macOS 26.0; I have not reviewed it.
+- On a macOS build the Wi-Fi menu part does not cover (26.0 to 26.6, Sequoia builds other than 24H32), xiaoyizpast's [WiFi Menu](https://github.com/xiaoyizpast/Hackintosh-OMEN-8f06/tree/main/wifi-menu) puts `mtkwifi` behind a menu bar icon: scan, join, disconnect ([#7](https://github.com/watchthelight-labs/WTLWireless/issues/7)). It is a third-party app (MIT), tested by its author on macOS 26.0; I have not reviewed it.
 - With the Wi-Fi menu: no AirDrop, Sidecar or Continuity Camera (there is no AWDL interface, [#8](https://github.com/watchthelight-labs/WTLWireless/issues/8)). The captive-portal flow is macOS's own: on a portal network the Captive Network Assistant opens and the interface is ranked "Never" until you log in, as on a real Mac.
 - It can't join WPA3-SAE only, WPA2 with PSK-SHA256 only, networks that require management frame protection, WPA (TKIP pairwise) or enterprise (802.1X) networks. `mtkwifi list` marks these.
 - No roaming between access points of one network. No HE (802.11ax) or EHT; the association is VHT at 80 MHz.
@@ -269,7 +272,7 @@ in the `MtkConflict` property of the card's PCI device. In commands, the class n
 
 ### Without the Wi-Fi menu
 
-On Sequoia, or on a Tahoe build the Wi-Fi menu part does not cover, the driver shows an Ethernet port. Build the tool
+On a Sequoia or Tahoe build the Wi-Fi menu part does not cover, the driver shows an Ethernet port. Build the tool
 and save your network (it asks for the passphrase at the prompt and stores only the derived PMK, root-only):
 
 ```

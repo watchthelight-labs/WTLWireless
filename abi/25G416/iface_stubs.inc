@@ -234,7 +234,6 @@ IOReturn WTLWirelessNativeIf::getTRAP_CRASHTRACER_MINI_DUMP(apple80211_trap_mini
 IOReturn WTLWirelessNativeIf::getBEACON_INFO(apple80211_beacon_info_t* a1) { nativeCall(ctl, 'S', 508); return kIOReturnUnsupported; }
 IOReturn WTLWirelessNativeIf::getCHIP_POWER_RANGE(apple80211_chip_power_limit* a1) { nativeCall(ctl, 'S', 509); return kIOReturnUnsupported; }
 IOReturn WTLWirelessNativeIf::getNSS(apple80211_nss_data* a1) { nativeCall(ctl, 'S', 510); return kIOReturnUnsupported; }
-IOReturn WTLWirelessNativeIf::getHW_ADDR(apple80211_hw_mac_address* a1) { nativeCall(ctl, 'S', 511); return kIOReturnUnsupported; }
 IOReturn WTLWirelessNativeIf::getCHIP_DIAGS(appl80211_chip_diags_data* a1) { nativeCall(ctl, 'S', 512); return kIOReturnUnsupported; }
 IOReturn WTLWirelessNativeIf::getHP2P_CTRL(apple80211_hp2p_ctrl* a1) { nativeCall(ctl, 'S', 513); return kIOReturnUnsupported; }
 IOReturn WTLWirelessNativeIf::getBSS_BLACKLIST(bss_blacklist* a1) { nativeCall(ctl, 'S', 514); return kIOReturnUnsupported; }

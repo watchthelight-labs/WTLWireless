@@ -25,7 +25,7 @@ Contributed by [Elezorn](https://github.com/Elezorn) in pull request 12.
   events 0x37 (driver available, 0xf8 bytes) and 0x31 (interfaces reset complete, u32 1), as AppleBCMWLANCore posts them
   in `powerOn` and `resetInterfacesComplete`. The native part never posted them, so WCL kept 00:00:00:00:00:00,
   `WCLJoinManager::handleJoinRequest` sent it as SET_MAC_ADDRESS, the MAC agent answered 0xe00002c2 and airportd logged
-  `APPLE80211_IOC_ASSOCIATE … 0xe00002c2` for every attempt. The Sequoia part now posts both once the data path is up and
+  `APPLE80211_IOC_ASSOCIATE ... 0xe00002c2` for every attempt. The Sequoia part now posts both once the data path is up and
   after a power-on (boot-arg `mtkwclready=0` turns it off), admits 0x167 and answers `getHW_ADDR` with the factory address.
 - Booted on a Dell Latitude 5421 (MT7925), macOS 15.8.1 (24H32): Wi-Fi menu, scans, WPA2 joins with and without a private
   address, and joins plus internet in macOS Recovery. The earlier MtkWlanNative 0.4.16 port of the same changes ran 6 minutes
