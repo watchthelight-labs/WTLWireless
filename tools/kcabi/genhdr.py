@@ -217,6 +217,9 @@ def declarator(t, n):
     t = norm(t)
     if '(*)' in t:
         return t.replace('(*)', '(*a%d)' % n, 1)
+    m = re.match(r'(.*?)\( block_pointer\)(\(.*\))$', t)      # GNU c++filt spelling of a block parameter
+    if m:
+        return '%s (^a%d)%s' % (m.group(1).strip(), n, m.group(2))
     if t.endswith(' block_pointer'):
         m = re.match(r'(.*?) (\(.*\))$', t[:-len(' block_pointer')])
         return '%s (^a%d)%s' % (m.group(1), n, m.group(2))
@@ -306,6 +309,8 @@ def analyse(d, cls):
 
 
 def sdk_headers():
+    if os.environ.get('KERNEL_HEADERS'):          # e.g. acidanthera/MacKernelSDK/Headers when not on macOS
+        return os.environ['KERNEL_HEADERS']
     sdk = subprocess.run(['xcrun', '--sdk', 'macosx', '--show-sdk-path'], capture_output=True, text=True, check=True).stdout.strip()
     return os.path.join(sdk, 'System/Library/Frameworks/Kernel.framework/Headers')
 

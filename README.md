@@ -396,6 +396,19 @@ headers for another build. The build then checks that every undefined symbol is 
 collection (`tools/kcabi/linkcheck.py`). `ABI=25G416 ./build.sh` picks a header set by hand; `NO_KMUTIL=1` and
 `NO_LINKCHECK=1` skip the two steps that read the installed kernel collections.
 
+macOS 15 Sequoia has the older IO80211 generation (190 request slots, other payload layouts): `ABI=24H32 ./build.sh` builds
+the Wi-Fi menu part against `abi/24H32/` with `MTK_ABI_SEQUOIA` (`src/native/MtkAbiCompat.h`). That part's allow-list holds
+only 24H32 (xnu-11417.140.69.712.69~1 plus the class sizes); the headers were checked against the 15.8.1 dump. For a Mac
+that boots both, build the bundle twice and give each its own OpenCore entries (`MaxKernel 24.99.99` for the Sequoia one,
+`MinKernel 25.0.0` for the Tahoe one). Boot-args of the Wi-Fi menu part that matter on Sequoia:
+
+- `mtkwclready=0`: do not post the driver-available (0x37) and interfaces-ready (0x31) events. Default on for a Sequoia
+  build, off for Tahoe. Without them WCL never reads the hardware MAC, and joins without a private address fail.
+- `mtknativelqm=1`: post the 0x27 link-quality and 0xaf beacon-counter events. Default off for a Sequoia build (their
+  layouts were read on 25G241 only), on for Tahoe; `mtknativelqm=0` turns them off there.
+- `mtknativecand=1`: read the candidate BSSID at the 25G241 offsets of the join request. Default off for a Sequoia build,
+  on for Tahoe.
+
 The firmware in `firmware/mt7925/` is checked against `firmware/mt7925/SHA256SUMS` and embedded in the binaries. The
 build is reproducible: the 0.14.0 release binaries are what `./build.sh` gives from the 0.14.0 tag with Apple clang
 21.0.0 (clang-2100.1.1.101), and their sha256 values are in the release notes and in `SHA256SUMS.txt` in the zip.
