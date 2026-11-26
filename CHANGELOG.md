@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.15.3 (2026-11-26)
+
+A fix for networks where the join works and no address ever arrives. Found on a range extender: WPA2 handshake
+complete, link up, and `en1` stayed on a self-assigned 169.254 address.
+
+- The MT7925 firmware can hand a received frame to the driver already converted to an Ethernet frame (the RXD2
+  HDR_TRANS bit). The driver asks for no conversion and until now dropped every converted frame on a WPA2 link. On
+  that extender all broadcast and multicast frames arrive converted, and it sends its DHCP replies as broadcast, so
+  the Mac never saw an offer. Up to 0.15.0 this showed as `MtkW6RxTrans` counting up while `MtkW6RxPackets` stood
+  still, and as the "trans" number in `MtkW2Sec`.
+- Converted frames are now taken when the hardware decrypted them with the cipher the network uses, which is what
+  the Linux driver does (`mt7925_mac_fill_rx`). One that was not decrypted is still dropped on a protected network.
+  TID and sequence number come from RXD group 4, so block-ack reordering and the replay counters work as for
+  ordinary frames. The parts of one A-MSDU share a sequence number and a packet number and go through both checks
+  together. An encrypted EAPOL frame on this path goes to the key handshake code.
+- New property `MtkW6RxTransInfo` on the `WTLWireless` node: `ok`, `undecrypted`, `amsdu`, `nogroup4` counters and
+  `last`, the flags of the newest converted frame (cipher in bits 0 to 7, bit 8 decrypted, bits 12 and 13 the
+  A-MSDU position, bit 16 group 4 present, bits 20 and up the station table index).
+
+Also in this release, from two versions that were built but never published:
+
+- The last address window of the MT7925 register map is 0x200000 long, as in Linux master. Nothing in the part
+  that was cut is used.
+- MT7927 only (still switched off, still never run on hardware by me): the band index in the device, BSS and scan
+  commands follows the channel, and the device record is added again when the band changes.
+- `tools/mtk-report.sh` sets umask 077, gives each command a time limit and lists panic files by name only.
+- Two diagnostics that are off unless you set their boot-arg, and that I have not run yet: `mtkrxdrop=1` keeps
+  counters and the first bytes of the last eight frames the driver dropped (addresses cut to the vendor part), and
+  `mtknativelqmsnr=1` puts noise and SNR into the link quality report for the Wi-Fi menu.
+
+How it was checked: on the test laptop (MT7925, macOS 26.7.3 developer beta 25G416) 0.15.3 gets its lease on the
+extender network 38 seconds into the boot check, 11ac at 80 MHz, 866 Mbit/s. Eight minutes in:
+`MtkW6RxPackets` over a million, `MtkW6RxTransInfo` "ok 657 undecrypted 0 amsdu 0 nogroup4 0", "trans" 0 in
+`MtkW2Sec`, no deauth. Not exercised by that run: an A-MSDU on the converted path and a group key renewal on it. On
+the host, `tests/run.sh` passes and `tests/hwtrace/run.sh` shows the MT7925 register trace is the same 3589 events.
+
 ## 0.15.0 (2026-11-12)
 
 The MT7927 (Filogic 380, also sold as AMD RZ738; PCI `14C3:7927`, `14C3:6639`, `14C3:0738`) is in the chip table,

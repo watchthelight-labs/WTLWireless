@@ -96,6 +96,7 @@ Everything below was measured on one laptop (Legion 5 15IAX10, OpenCore 1.0.8) o
 
 | Version | What it adds | Tested on | Result |
 |---|---|---|---|
+| 0.15.3 | takes frames the firmware already converted to Ethernet when the hardware decrypted them (they were dropped on WPA2 networks before). Fixes "joined, but no IP address" on an access point that sends broadcast frames that way and DHCP replies as broadcast | macOS 26.7.3 developer beta (25G416), MT7925, a WPA2 range extender network | lease 38 s into the boot check, 11ac 80 MHz at 866 Mbit/s; over a million frames received in 8 minutes, none of the converted ones dropped (`MtkW6RxTransInfo`), no deauth |
 | 0.15.0 | an MT7927 row in the chip table, off unless boot-arg `mtk7927=1` is set; without it the card is only reported. Nothing changes on an MT7925 | macOS 26.7.3 developer beta (25G416), MT7925 | joins the saved network at boot as before (5 GHz, 80 MHz, MCS 9, 2 streams, 866 Mbit/s); `MtkChipName` `MT7925`; the MT7927 path ran only in the host harness |
 | 0.14.0 | one kext: the driver, the Wi-Fi menu part and the Bluetooth loader in `WTLWireless.kext`, under new names and one version. Nothing changes on the air | macOS 26.7.3 developer beta (25G416) | Wi-Fi joins at boot through the Wi-Fi menu part inside the bundle, same channel list and link as 0.13.0 (5 GHz, 80 MHz, MCS 9, 2 streams, 866 Mbit/s); Bluetooth `ready` in 1.3 s, controller on |
 | 0.13.0 | core ops v6: a front end reads the chip name, streams, bands and width from the driver (`get_chip_info`), and channels come with a band (`get_channels2`, `get_link_chan`). Nothing changes on the air | macOS 26.7.3 developer beta (25G416) | joins at boot with MtkWlanNative 0.4.17 on v6; same channel list and link as 0.12.2 |
@@ -120,6 +121,7 @@ OpenCore 1.0.8) on macOS 26.7.1 (25G241), 26.7.2 (25G332), 26.7.3 (25G342) and t
 
 | Version | What it does | Result |
 |---|---|---|
+| 0.15.3 | noise and SNR in the link quality report behind boot-arg `mtknativelqmsnr=1` (off by default, not run yet); otherwise as 0.15.0 | joins the saved network at boot on 25G416, 5g44/80 at 866 Mbps |
 | 0.15.0 | version only; same code as 0.14.0 | joins the saved network at boot on 25G416, 5g157/80 at 866 Mbps |
 | 0.14.0 | moved into the bundle as `WTLWirelessNative.kext`; same code as 0.4.17 | joins the saved network at boot on 25G416, 5g44/80 at 866 Mbps; `MtkNativeCoreOps` 6 |
 | 0.4.17 | chip name, stream count and channel bands come from the driver (MtkWlan 0.13.0, core API v6); nothing hard-codes an MT7925 any more | same channel list, name and link as 0.4.16 on 25G416; `MtkNativeCoreOps` 6 |
@@ -149,6 +151,7 @@ Versions before 0.14.0 in this table are those of `MtkBt.kext`.
 
 | Version | Tested on | Result |
 |---|---|---|
+| 0.15.3 | Legion 5 15IAX10, macOS 26.7.3 developer beta (25G416), OpenCore 1.0.8 | version only; `MtkBtState` = `ready`. Pairing and audio were not repeated |
 | 0.15.0 | Legion 5 15IAX10, macOS 26.7.3 developer beta (25G416), OpenCore 1.0.8 | version only; `MtkBtState` = `ready`, controller on. An MT7927's Bluetooth is not loaded |
 | 0.14.0 | Legion 5 15IAX10, macOS 26.7.3 developer beta (25G416), OpenCore 1.0.8 | moved into the bundle as `WTLWirelessBt.kext`; same code as 0.2.4. `MtkBtState` = `ready` in 1251 ms, controller on, known devices still listed. Pairing and audio were not repeated for this release |
 | 0.2.4 | Legion 5 15IAX10, macOS 26.7.1 (25G241) and 26.7.2 (25G332), OpenCore 1.0.8 | loaded on the Legion since 2026-10-23; changes since 0.2.0 are for other boards (more USB ids, the AMD RZ717 sleep-protection bypass, a warm-restart fix and a per-boot reset cap, reported in [#9](https://github.com/watchthelight-labs/WTLWireless/issues/9)) and are not exercised on the Legion's own chip |
