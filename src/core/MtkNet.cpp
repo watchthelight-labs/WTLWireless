@@ -187,12 +187,10 @@ void WTLWireless::rxFrame(const uint8_t *p, uint32_t len) {
     const uint8_t *f = p + off;
     uint32_t flen = len - off;
 
-    if (rxd2 & (1u << 7)) {                                           // HDR_TRANS: already 802.3 (translation is off)
+    if (rxd2 & (1u << 7)) {                                           // HDR_TRANS: the firmware made it 802.3
         if (rxd2 & (1u << 25)) { rxBad++; return; }
         rxTrans++;
-        if (tgtRsn || !portOpen) { rxTransDrop++; return; }
-        if (!memcmp(f + 6, mac, 6)) return;
-        deliver(f, f + 6, f + 12, flen - 12);
+        rxTranslated(p, len, f, flen, rxd1, secMode, decrypted, hasPn, pn);
         return;
     }
 
@@ -201,6 +199,7 @@ void WTLWireless::rxFrame(const uint8_t *p, uint32_t len) {
     if (flen < 24) { rxBad++; return; }
     if (type == 1) {                                                  // control: BlockAckReq from the AP
         if (sub == 8 && !memcmp(f + 4, mac, 6) && !memcmp(f + 10, tgtBssid, 6)) rxBar(f, flen);
+        else if (rxDropOn) mtk_rxdrop_note(&rxDrop, MTK_RXDROP_CTRL_OTHER, f, flen);
         return;
     }
     if (type == 0) {
@@ -208,19 +207,33 @@ void WTLWireless::rxFrame(const uint8_t *p, uint32_t len) {
             bssNoteFrame(f, flen, rxRssi(p, len, rxd1));              // beacons keep the cache fresh while associated
             return;
         }
-        if (sub == 13 && flen >= 28 && f[24] == 3 && !memcmp(f + 4, mac, 6) && !memcmp(f + 16, tgtBssid, 6))
+        bool mgmtUsed = false;                                        // for the phase 0 drop counter only
+        if (sub == 13 && flen >= 28 && f[24] == 3 && !memcmp(f + 4, mac, 6) && !memcmp(f + 16, tgtBssid, 6)) {
             baQueue(f, flen);                                         // action: block ack (ADDBA / DELBA), handled in tick
+            mgmtUsed = true;
+        }
         if ((sub == 12 || sub == 10) && !memcmp(f + 4, mac, 6) && !memcmp(f + 16, tgtBssid, 6) && flen >= 26) {
+            mgmtUsed = true;
             lastDeauth = (uint32_t)sub << 16 | le16(f + 24);         // subtype << 16 | reason
             deauths++;
             deauthPendingReason = le16(f + 24);
             linkLost();                                               // flags it; the tick tears the link down
         }
+        if (!mgmtUsed && rxDropOn) mtk_rxdrop_note(&rxDrop, MTK_RXDROP_MGMT_UNUSED, f, flen);
         return;
     }
-    if (type != 2 || (f[1] & 3) != 2 || memcmp(f + 10, tgtBssid, 6) != 0) return;   // data, FromDS, from our AP
-    if (sub & 4) return;                                              // null / no payload
-    if (!(f[4] & 1) && memcmp(f + 4, mac, 6)) return;                 // unicast to another station
+    if (type != 2 || (f[1] & 3) != 2 || memcmp(f + 10, tgtBssid, 6) != 0) {   // data, FromDS, from our AP
+        if (rxDropOn) mtk_rxdrop_note(&rxDrop, MTK_RXDROP_DATA_OTHER_BSS, f, flen);
+        return;
+    }
+    if (sub & 4) {                                                    // null / no payload
+        if (rxDropOn) mtk_rxdrop_note(&rxDrop, MTK_RXDROP_DATA_NOPAYLOAD, f, flen);
+        return;
+    }
+    if (!(f[4] & 1) && memcmp(f + 4, mac, 6)) {                       // unicast to another station
+        if (rxDropOn) mtk_rxdrop_note(&rxDrop, MTK_RXDROP_DATA_UNICAST_OTHER, f, flen);
+        return;
+    }
     bool protFrame = (f[1] & 0x40) != 0;
     uint32_t h = 24;
     if (sub & 8) {
@@ -310,35 +323,137 @@ void WTLWireless::txStatus(const uint8_t *p, uint32_t len) {
     }
 }
 
-// Hand one Ethernet frame (DA, SA, ethertype + payload) to the network stack; the PN and its replay-counter
-// slot travel with the frame through the block-ack reorder buffer and are checked when it is delivered in order
-void WTLWireless::deliver(const uint8_t *da, const uint8_t *sa, const uint8_t *typeAndPayload, uint32_t n, int tid,
-                      uint16_t seq, int pnSlot, uint64_t pn) {
-    if (!fe.rx || !ifEnabled || n < 2 || n > 1502) { rxDropped++; return; }
+// A frame the firmware translated to 802.3. Some APs get this whatever STA_REC_HDR_TRANS says (I-142: every data
+// frame of one range extender). On a WPA2 link only what the hardware decrypted with the expected cipher is taken,
+// as mt7925_mac_fill_rx does. TID and sequence number come from RXD group 4. The subframes of one A-MSDU share a
+// sequence number and a PN, so they pass reorder and the replay check as one unit (mt76_rx_release_burst).
+void WTLWireless::rxTranslated(const uint8_t *p, uint32_t len, const uint8_t *f, uint32_t flen, uint32_t rxd1,
+                               uint32_t secMode, bool decrypted, bool hasPn, uint64_t pn) {
+    bool group = (f[0] & 1) != 0, g4 = (rxd1 & (1u << 19)) && len >= 48;
+    uint32_t fmt = le32(p + 16) & 3;                                  // RXD4 payload format: 0 MSDU, 3 first, 2 middle, 1 last
+    rxTransLast = secMode | (decrypted ? 0x100u : 0) | (fmt << 12) | (g4 ? 0x10000u : 0) | ((rxd1 & 0xfff) << 20);
+    if (!portOpen) { rxTransDrop++; return; }
+    if (tgtRsn) {
+        uint32_t want = (group && tgtGroup == 2) ? 2u : 4u;
+        if (!decrypted || secMode != want) { rxTransUndec++; rxTransDrop++; return; }
+    }
+    if (f[12] == 0x88 && f[13] == 0x8e) {                             // EAPOL: a rekey, encrypted; never to the front end
+        if (tgtRsn && !group && !memcmp(f + 6, tgtBssid, 6)) { rxEapol++; secQueueEapol(f + 14, flen - 14); }
+        else rxTransDrop++;
+        return;
+    }
+    if (fmt == 3 && !memcmp(f, kSnap, 6)) { rxTransDrop++; return; }  // forged A-MSDU: an LLC header as destination
+    if (!memcmp(f + 6, mac, 6)) { rxOwn++; return; }                  // our broadcast, relayed back by the AP
+    int tid = -1, pnSlot = -1;
+    uint32_t pnTid = 0;
+    uint16_t seq = 0;
+    if (g4) {                                                         // frame control, sequence control, QoS control
+        uint32_t v0 = le32(p + 32), v2 = le32(p + 40);
+        seq = (uint16_t)((v2 & 0xffff) >> 4);
+        if ((v0 & 0x8c) == 0x88) {                                    // QoS data
+            uint32_t qos = v2 >> 16;
+            pnTid = qos & 0x7;
+            if (!group && ((qos >> 5) & 3) != 1) {                    // unicast, not no-ack
+                tid = qos & 0xf;
+                if (tid >= 8 || !rxTid[tid].active) tid = -1;
+            }
+        }
+    } else {
+        rxTransNoG4++;
+    }
+    if (tgtRsn && secMode == 4) {
+        if (hasPn && (group || g4)) pnSlot = (group ? 8 : 0) + (int)pnTid;
+        else rxNoPn++;                                                // no PN, or a unicast frame with no TID to file it under
+    }
+    mbuf_t m = rxMbuf(f, f + 6, f + 12, flen - 12);
+    if (!m) return;
+    rxTransOk++;
+    if (fmt) rxTransAmsdu++;
+    bool cont = g4 && fmt && fmt != 3 && amsduHead && amsduSeq == seq && amsduTid == tid;
+    if (!cont) amsduRelease();                                        // an open burst ends where another frame begins
+    if (!fmt || !g4) {
+        if (fmt && fmt != 3) pnSlot = -1;                             // the first subframe's PN, and no sequence number to group by
+        if (tid >= 0) rxBaReorder((uint8_t)tid, seq, m, pnSlot, pn);
+        else inputChecked(m, pnSlot, pn);
+        return;
+    }
+    if (cont) {
+        mbuf_setnextpkt(amsduTail, m);
+        amsduTail = m;
+        if (++amsduCount >= 64) fmt = 1;                              // no A-MSDU is longer; do not let a chain grow
+    } else {
+        amsduCount = 1;
+        amsduHead = amsduTail = m;
+        amsduTid = tid;
+        amsduSeq = seq;
+        amsduPnSlot = pnSlot;
+        amsduPn = pn;
+        amsduAt = ticks;
+    }
+    if (fmt == 1) amsduRelease();
+}
+
+void WTLWireless::amsduRelease() {
+    mbuf_t m = amsduHead;
+    if (!m) return;
+    amsduHead = amsduTail = nullptr;
+    if (amsduTid >= 0 && rxTid[amsduTid].active) rxBaReorder((uint8_t)amsduTid, amsduSeq, m, amsduPnSlot, amsduPn);
+    else inputChecked(m, amsduPnSlot, amsduPn);
+}
+
+// m may be several packets linked by nextpkt (an A-MSDU burst)
+void WTLWireless::freePkts(mbuf_t m) {
+    while (m) {
+        mbuf_t next = mbuf_nextpkt(m);
+        mbuf_setnextpkt(m, nullptr);
+        mbuf_freem(m);
+        m = next;
+    }
+}
+
+mbuf_t WTLWireless::rxMbuf(const uint8_t *da, const uint8_t *sa, const uint8_t *typeAndPayload, uint32_t n) {
+    if (!fe.rx || !ifEnabled || n < 2 || n > 1502) { rxDropped++; return nullptr; }
     mbuf_t m = fe.rx_alloc(fe.ctx, 12 + n);
-    if (!m) { rxDropped++; return; }
+    if (!m) { rxDropped++; return nullptr; }
     uint8_t eh[12];
     memcpy(eh, da, 6);
     memcpy(eh + 6, sa, 6);
     if (mbuf_copyback(m, 0, 12, eh, MBUF_DONTWAIT) || mbuf_copyback(m, 12, n, typeAndPayload, MBUF_DONTWAIT)) {
         mbuf_freem(m);
         rxDropped++;
-        return;
+        return nullptr;
     }
+    return m;
+}
+
+// Hand one Ethernet frame (DA, SA, ethertype + payload) to the network stack; the PN and its replay-counter
+// slot travel with the frame through the block-ack reorder buffer and are checked when it is delivered in order
+void WTLWireless::deliver(const uint8_t *da, const uint8_t *sa, const uint8_t *typeAndPayload, uint32_t n, int tid,
+                      uint16_t seq, int pnSlot, uint64_t pn) {
+    mbuf_t m = rxMbuf(da, sa, typeAndPayload, n);
+    if (!m) return;
     if (tid >= 0) rxBaReorder((uint8_t)tid, seq, m, pnSlot, pn);
     else inputChecked(m, pnSlot, pn);
 }
 
 void WTLWireless::inputChecked(mbuf_t m, int pnSlot, uint64_t pn) {
-    if (!pnAccept(pnSlot, pn)) { mbuf_freem(m); return; }
+    if (!pnAccept(pnSlot, pn)) { freePkts(m); return; }
     inputQueue(m);
 }
 
 void WTLWireless::inputQueue(mbuf_t m) {
-    if (!fe.rx) { mbuf_freem(m); return; }
-    fe.rx(fe.ctx, m);
-    rxQueued = true;
-    rxPackets++;
+    while (m) {
+        mbuf_t next = mbuf_nextpkt(m);
+        mbuf_setnextpkt(m, nullptr);
+        if (fe.rx) {
+            fe.rx(fe.ctx, m);
+            rxQueued = true;
+            rxPackets++;
+        } else {
+            mbuf_freem(m);
+        }
+        m = next;
+    }
 }
 
 // ---------------------------------------------------------------- link
@@ -518,6 +633,7 @@ void WTLWireless::tick() {
     if (ticks % 100 == 0) txSweep();
     baService();
     if (ticks % 10 == 0) rxBaTimeouts();
+    if (amsduHead && ticks - amsduAt >= 10) amsduRelease();           // the last subframe never came
     if (ticks % 1000 == 0) bssAge();
     if (countryPending && ticks % 100 == 0) countryService();
     txInflightMax = txBaState == 2 ? txCapBa : txCapNoBa;
@@ -572,10 +688,26 @@ void WTLWireless::publishW6() {
     setNum("MtkW6RxBad", rxBad);
     setNum("MtkW6RxPartial", rxPartial);
     setNum("MtkW6RxTrans", rxTrans);
+    char ti[96];
+    snprintf(ti, sizeof(ti), "ok %u undecrypted %u amsdu %u nogroup4 %u last %08x", rxTransOk, rxTransUndec, rxTransAmsdu,
+             rxTransNoG4, rxTransLast);
+    setProperty("MtkW6RxTransInfo", ti);
     setNum("MtkW6RxNonSnap", rxNonSnap);
     setNum("MtkW6RxOwn", rxOwn);
     setNum("MtkW6RxDropped", rxDropped);
     setNum("MtkW6RxFrames", rxFrames);
+    if (rxDropOn) {                       // AWDL phase 0: drops by reason, and the first bytes of the newest few (newest = 0)
+        setNum("MtkW6RxDropCtrlOther", rxDrop.count[MTK_RXDROP_CTRL_OTHER]);
+        setNum("MtkW6RxDropMgmtUnused", rxDrop.count[MTK_RXDROP_MGMT_UNUSED]);
+        setNum("MtkW6RxDropDataOtherBss", rxDrop.count[MTK_RXDROP_DATA_OTHER_BSS]);
+        setNum("MtkW6RxDropDataNoPayload", rxDrop.count[MTK_RXDROP_DATA_NOPAYLOAD]);
+        setNum("MtkW6RxDropDataUnicastOther", rxDrop.count[MTK_RXDROP_DATA_UNICAST_OTHER]);
+        for (uint32_t i = 0; i < MTK_RXDROP_RING; i++) {
+            char key[24], val[2 + 2 * MTK_RXDROP_BYTES + 8];
+            snprintf(key, sizeof(key), "MtkW6RxDropRing%u", i);
+            if (mtk_rxdrop_format(&rxDrop, i, val, sizeof(val))) setProperty(key, val);
+        }
+    }
     setNum("MtkW6Deauths", deauths);
     setNum("MtkW6LastDeauth", lastDeauth);
     setNum("MtkW6Rejoins", rejoins);

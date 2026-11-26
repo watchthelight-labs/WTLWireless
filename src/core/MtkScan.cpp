@@ -463,7 +463,7 @@ void WTLWireless::publishScan() {
 int WTLWireless::devInfo(bool enable) {
     uint8_t dev[16] = {};
     dev[0] = 0;                 // omac_idx
-    dev[1] = 0xff;              // band_idx (mt7925 uses 0xff)
+    dev[1] = bandIdx();         // band_idx (mt7925 uses 0xff)
     put16(dev + 4, 0);          // DEV_INFO_ACTIVE
     put16(dev + 6, 12);
     dev[8] = enable ? 1 : 0;    // active
@@ -476,7 +476,7 @@ int WTLWireless::devInfo(bool enable) {
     put16(b + 0, 0);            // UNI_BSS_INFO_BASIC
     put16(b + 2, 32);
     b[4] = enable ? 1 : 0;      // active
-    b[7] = (chip->quirks & MTK_Q_BAND_IDX) ? 0 : 0xff;   // band_idx (MT7927: 0 for the idle record)
+    b[7] = bandIdx();           // band_idx
     put32(b + 8, 0x10001);      // CONNECTION_INFRA_STA
     b[12] = 1;                  // conn_state
     put16(b + 20, 19);          // bmc_tx_wlan_idx (itlmt7925 value, WTBL reserved)
@@ -603,7 +603,7 @@ int WTLWireless::scanStart() {
     uint8_t *w = sc;
     scanSeq = (uint8_t)((scanSeq % 0x7f) + 1);
     bssGen++;
-    w[0] = (uint8_t)(0x80 | scanSeq);             // seq_num | band_idx << 7 (0xff truncates to 1)
+    w[0] = (uint8_t)(((bandIdx() & 1) << 7) | scanSeq);   // seq_num | band_idx << 7 (0xff truncates to 1)
     w += 4;
     put16(w, 1); put16(w + 2, 20);                // UNI_SCAN_REQ
     w[4] = 1;                                     // active (the firmware stays passive on NO_IR channels)

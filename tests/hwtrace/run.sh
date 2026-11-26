@@ -44,11 +44,13 @@ if grep -q '^UNEXPECTED' "$OUT/trace.ops6.txt" || [ "$(grep -c '^OPS6 ' "$OUT/tr
 fi
 grep '^OPS6 ' "$OUT/trace.ops6.txt" | sed 's/^/hwtrace: /'
 
-# a card without a chip table row (an ID no row lists) must not be touched at all
-"$B/hwtrace" "$OUT/trace.unknown.txt" --pcidev 7961
+# a card without a chip table row (an ID no row lists) must not be touched at all.
+# 0x7000 is in no MediaTek mt76 PCI ID table (checked against Linux v6.18 and master), so a future row for a real
+# card (7961, 7922, 0608, 0616, 7920) cannot turn this check into a different one.
+"$B/hwtrace" "$OUT/trace.unknown.txt" --pcidev 7000
 t=$(grep -c -v '^PHASE \|^STEP \|^RESULT ' "$OUT/trace.unknown.txt" || true)
 [ "$t" = 0 ] || { echo "hwtrace: unknown card: $t hardware events, want 0" >&2; grep -v '^PHASE \|^STEP \|^RESULT ' "$OUT/trace.unknown.txt" | head -5 >&2; exit 1; }
-echo "hwtrace: unknown card (14c3:7961): no hardware access"
+echo "hwtrace: unknown card (14c3:7000): no hardware access"
 
 # the MT7927 row is matched but opt-in: without boot-arg mtk7927=1 it is report only, no register or config access
 "$B/hwtrace" "$OUT/trace.7927off.txt" --pcidev 7927 --chip 7927 --lnkctl 43 --props

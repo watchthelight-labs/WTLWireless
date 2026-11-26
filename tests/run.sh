@@ -12,6 +12,8 @@ clang -std=c11 -O1 -g -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-r
   mtk_wpa_test.c ../src/core/MtkCrypto.c ../src/core/MtkSupp.c -o "$OUT/mtk_wpa_test"
 clang -std=c11 -O1 -g -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer \
   mtk_super_test.c ../src/core/MtkSuper.c -o "$OUT/mtk_super_test"
+clang -std=c11 -O1 -g -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer   mtk_rxdrop_test.c -o "$OUT/mtk_rxdrop_test"
+"$OUT/mtk_rxdrop_test" || exit 1
 "$OUT/mtk_super_test" || exit 1
 "$OUT/mtk_wpa_test" | tee "$OUT/result.txt"
 python3 -I oracle.py > "$OUT/oracle.txt"

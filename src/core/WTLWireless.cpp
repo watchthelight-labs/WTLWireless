@@ -142,6 +142,9 @@ bool WTLWireless::start(IOService *provider) {
     if (stallSec > 600) stallSec = 600;
     mtk_super_init(&super, stallSec * 1000);
     setNum("MtkStallSec", stallSec);
+    uint32_t rxDropArg = 0;                     // AWDL phase 0 instrumentation, off unless the boot-arg says 1
+    PE_parse_boot_argn("mtkrxdrop", &rxDropArg, sizeof(rxDropArg));
+    rxDropOn = rxDropArg == 1;
     // 0.10.0: which front end owns the data path. MtkFrontEnd "native" waits for WTLWirelessNative.kext (falls back to the
     // Ethernet front end if it declines or stays away); boot-arg mtkfe=native|ethernet overrides the plist
     if (OSString *feStr = OSDynamicCast(OSString, getProperty("MtkFrontEnd"))) feNativeWanted = feStr->isEqualTo("native");
@@ -315,6 +318,8 @@ void WTLWireless::stop(IOService *provider) {
     if (mmio && chipConfirmed)
         rawWrite(0xd4208, rawRead(0xd4208) & ~0x5u); // WFDMA0 GLO_CFG: stop TX/RX DMA before freeing rings
     for (uint8_t t = 0; t < 8; t++) rxBaStop(t);
+    freePkts(amsduHead);
+    amsduHead = amsduTail = nullptr;
     ringFree(txData); ringFree(txMcu); ringFree(txFwdl); ringFree(rxMcu); ringFree(rxData); ringFree(rxWa);
     OSSafeReleaseNULL(mapper);
     OSSafeReleaseNULL(map);

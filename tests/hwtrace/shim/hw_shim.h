@@ -276,6 +276,8 @@ inline bool thread_call_free(thread_call_t) { return true; }
 typedef struct hw_mbuf *mbuf_t;
 #define MBUF_DONTWAIT 1
 inline void mbuf_freem(mbuf_t) { hw_unexpected("mbuf_freem"); }
+inline mbuf_t mbuf_nextpkt(mbuf_t) { hw_unexpected("mbuf_nextpkt"); return nullptr; }
+inline void mbuf_setnextpkt(mbuf_t, mbuf_t) { hw_unexpected("mbuf_setnextpkt"); }
 inline int mbuf_copydata(mbuf_t, size_t, size_t, void *) { hw_unexpected("mbuf_copydata"); return 1; }
 inline int mbuf_copyback(mbuf_t, size_t, size_t, const void *, int) { hw_unexpected("mbuf_copyback"); return 1; }
 inline size_t mbuf_pkthdr_len(mbuf_t) { hw_unexpected("mbuf_pkthdr_len"); return 0; }

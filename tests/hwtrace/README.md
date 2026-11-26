@@ -26,7 +26,7 @@ file is picked up without touching the harness (WTLWirelessEth.cpp and MtkUserCl
 `TXDATA` (TX descriptor and frame hashes), `RXMCU` / `RXDATA` (what the model hands back). Device addresses come from a
 fixed bump allocator. No host pointers, no timestamps. `hwtrace <file> --props` adds `PROP` lines (the registry
 properties the driver publishes) for debugging. `--pcidev <hex>` makes the fake card report another PCI device ID;
-`run.sh` uses an unlisted one (7961) to check that a card without a chip table row gets no register access at all.
+`run.sh` uses an unlisted one (7000, in no mt76 PCI table) to check that a card without a chip table row gets no register access at all.
 `--chip 7927` makes the model behave like MT7927 silicon (CBTOP reset, RX rings 6/4/7), `--chipid <hex>` sets the raw CHIPID
 word, `--lnkctl <hex>` gives the card a PCIe capability with that Link Control, `--bootarg k=v` sets a boot-arg.
 `run.sh` checks that MT7927 without `mtk7927=1` is report only with zero register writes, that the opt-in run matches

@@ -222,6 +222,11 @@ void Mt7925Model::mcuTx(const uint8_t *m, uint32_t len) {
     uint8_t opt = m[43];
     hw_trace("MCU uni cid 0x%02x seq %u opt 0x%02x len %u hdr %08x fnv %08x", cid, seq, opt, plen, fnv(m, hdrLen), fnv(pl, plen));
     uint16_t tag = plen >= 6 ? g16(pl + 4) : 0xffff;
+    if (is7927() && plen >= 12) {                      // band_idx as the firmware would read it, for the golden sequence
+        if (cid == 0x01 && tag == 0) hw_trace("BAND dev %u %u", pl[8], pl[1]);               // DEV_INFO_ACTIVE: active, band_idx
+        if (cid == 0x02 && tag == 0 && plen >= 16) hw_trace("BAND bss %u %u", pl[8], pl[11]);   // BSS_INFO_BASIC: active, band_idx
+        if (cid == 0x16) hw_trace("BAND scan %u", pl[0] >> 7);                               // SCAN_REQ seq_num bit 7 = band_idx
+    }
     std::vector<uint8_t> body;
     if (cid == 0x0e && tag == 3) {                     // CHIP_CONFIG NIC_CAPA: one element, the MAC address (tag 7)
         body = { 1, 0, 0, 0, 7, 0, 12, 0, kStaMac[0], kStaMac[1], kStaMac[2], kStaMac[3], kStaMac[4], kStaMac[5], 0, 0 };

@@ -28,6 +28,7 @@
 #include <libkern/OSByteOrder.h>
 #include "MtkDma.hpp"
 #include "MtkChip.h"
+#include "MtkRxDrop.h"
 #include "MtkCoreApi.h"
 #include "MtkSupp.h"
 #include "MtkSuper.h"
@@ -140,6 +141,7 @@ private:
     void mtkParseFrame(const uint8_t *p, uint32_t len);
     int hwInit(bool keepMac = false);
     int devInfo(bool enable);
+    uint8_t bandIdx() const { return (chip->quirks & MTK_Q_BAND_IDX) ? devBand : 0xff; }
     int scanStart();
     void scanService();
     void bssAge();
@@ -268,6 +270,11 @@ private:
     void rxFrame(const uint8_t *p, uint32_t len);
     void deliver(const uint8_t *da, const uint8_t *sa, const uint8_t *typeAndPayload, uint32_t n, int tid = -1,
                  uint16_t seq = 0, int pnSlot = -1, uint64_t pn = 0);
+    mbuf_t rxMbuf(const uint8_t *da, const uint8_t *sa, const uint8_t *typeAndPayload, uint32_t n);
+    void rxTranslated(const uint8_t *p, uint32_t len, const uint8_t *f, uint32_t flen, uint32_t rxd1, uint32_t secMode,
+                      bool decrypted, bool hasPn, uint64_t pn);
+    void amsduRelease();
+    void freePkts(mbuf_t m);
     void inputQueue(mbuf_t m);
     void inputChecked(mbuf_t m, int pnSlot, uint64_t pn);
     // MtkBa.cpp: W9
@@ -325,6 +332,7 @@ private:
     bool scanRunning = false, scanWanted = false, scanEverDone = false;
     uint32_t scanStartedAt = 0, scanDoneAt = 0, scanFinishedAt = 0, scans = 0, scanFails = 0;
     uint8_t scanSeq = 0;
+    uint8_t devBand = 0;                       // MTK_Q_BAND_IDX chips: band_idx of the DEV_INFO record (0 2.4 GHz, 1 5 and 6 GHz)
     bool userScanPending = false;              // a userspace scan: the auto-open fallback waits for its outcome
     uint32_t userScanDoneAt = 0, firstScanDoneAt = 0;
     // firmware command health: uniCmd never runs inside the RX path, and a dead firmware stops the machines
@@ -429,8 +437,17 @@ private:
              txFreeBadVer = 0, txLostFree = 0, txFailed = 0;
     uint32_t rxPackets = 0, rxBad = 0, rxPartial = 0, rxTrans = 0, rxNonSnap = 0, rxProtected = 0,
              rxOwn = 0, rxDropped = 0;
+    // translated (802.3) frames: subframes of one A-MSDU wait here, linked by nextpkt, until the last one
+    mbuf_t amsduHead = nullptr, amsduTail = nullptr;
+    int amsduTid = -1, amsduPnSlot = -1;
+    uint16_t amsduSeq = 0;
+    uint64_t amsduPn = 0;
+    uint32_t amsduAt = 0, amsduCount = 0;
+    uint32_t rxTransOk = 0, rxTransUndec = 0, rxTransAmsdu = 0, rxTransNoG4 = 0, rxTransLast = 0;
     uint32_t deauths = 0, lastDeauth = 0, rejoins = 0, keepalives = 0;
     uint32_t rxTypes[32] = {};
+    bool rxDropOn = false;                     // boot-arg mtkrxdrop=1: count and sample the frames rxFrame drops (AWDL phase 0)
+    mtk_rxdrop rxDrop = {};
     uint32_t txInFlight = 0, txInFlightPeak = 0, txCapped = 0, txQueued = 0;
     bool w6Pass = false;
 

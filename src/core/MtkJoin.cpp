@@ -142,8 +142,8 @@ int WTLWireless::bssInfo(bool enable) {
     m.b[0] = BSS_IDX;
     uint8_t *b = m.tlv(0, 32);                  // UNI_BSS_INFO_BASIC
     b[4] = 1;                                   // active
-    // band_idx: 0xff, MT7927 takes the band of the channel (mt7927_band_idx: 2.4 GHz 0, 5 and 6 GHz 1)
-    b[7] = (chip->quirks & MTK_Q_BAND_IDX) ? (tgtCh > 14 ? 1 : 0) : 0xff;
+    // band_idx: 0xff, MT7927 the band of the channel context (devBand, set in joinStart)
+    b[7] = bandIdx();
     put32(b + 8, 0x10001);                      // CONNECTION_INFRA_STA
     b[12] = enable ? 0 : 1;                     // conn_state
     memcpy(b + 14, tgtBssid, 6);
@@ -500,6 +500,11 @@ bool WTLWireless::joinStart(int idx) {
     mgmtLen = 0;
     parseAp();
     hwPrep();
+    if (chip->quirks & MTK_Q_BAND_IDX) {        // mt7927_reconfig_band on every channel context assign: DEV_INFO off, new band, on
+        devInfo(false);
+        devBand = tgtCh > 14 ? 1 : 0;
+        devInfo(true);
+    }
     setNum("MtkW5ApRates", (uint32_t)apSupp << 8 | apBasic);
     setNum("MtkW5BssAdd", (uint32_t)bssInfo(false));
     setNum("MtkW5StaNone", (uint32_t)staRec(0, true, 0));
@@ -651,6 +656,8 @@ void WTLWireless::joinTeardown(uint16_t reason) {
     joinState = 0;
     secReset();
     for (uint8_t t = 0; t < 8; t++) rxBaStop(t);
+    freePkts(amsduHead);
+    amsduHead = amsduTail = nullptr;
     txBaState = 0;
     baQHead = baQTail = 0;
     if (rocHeld) { roc(false); rocHeld = false; }

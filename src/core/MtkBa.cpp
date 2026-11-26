@@ -139,7 +139,7 @@ void WTLWireless::rxBaStart(uint8_t tid, uint16_t ssn, uint16_t size) {
 void WTLWireless::rxBaStop(uint8_t tid) {
     MtkRxTid &t = rxTid[tid];
     for (int i = 0; i < MTK_BA_WIN; i++)
-        if (t.buf[i]) { mbuf_freem(t.buf[i]); t.buf[i] = nullptr; }
+        if (t.buf[i]) { freePkts(t.buf[i]); t.buf[i] = nullptr; }
     t.nframes = 0;
     t.active = false;
 }
@@ -174,7 +174,7 @@ void WTLWireless::rxBaReorder(uint8_t tid, uint16_t seqno, mbuf_t m, int pnSlot,
         if (snl) { inputChecked(m, pnSlot, pn); return; }
         t.started = true;
     }
-    if (snl) { mbuf_freem(m); baDup++; return; }
+    if (snl) { freePkts(m); baDup++; return; }
     if (seqno == head) {
         t.head = snInc(head);
         inputChecked(m, pnSlot, pn);
@@ -186,7 +186,7 @@ void WTLWireless::rxBaReorder(uint8_t tid, uint16_t seqno, mbuf_t m, int pnSlot,
         rxBaReleaseFrames(t, head);
     }
     int idx = seqno % size;
-    if (t.buf[idx]) { mbuf_freem(m); baDup++; return; }
+    if (t.buf[idx]) { freePkts(m); baDup++; return; }
     t.buf[idx] = m;
     t.at[idx] = ticks;
     t.seq[idx] = seqno;

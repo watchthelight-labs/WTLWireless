@@ -9,6 +9,7 @@
 #include "MtkNativeTrace.hpp"
 #include "MtkChanspec.h"
 #include <IOKit/IOLib.h>
+#include <pexpert/pexpert.h>
 #include <string.h>
 
 namespace {
@@ -19,6 +20,18 @@ inline T load(const void *d, size_t off) { T v; memcpy(&v, (const uint8_t *)d + 
 // what Apple's getRSSI / getRATE return while not associated, and getCHANNEL while no current channel can be read
 const IOReturn kNotAssociated = (IOReturn)0xe0822403;
 const IOReturn kNoChannel = (IOReturn)0xe0822801;
+// boot-arg mtknativelqmsnr=1 (default off): adds a fixed noise floor, an SNR and per-chain RSSI bytes to the 0x27 link quality
+// snapshot. The offsets come from the AirportMtkWlan v2.1.1 release notes and are not verified by us. Read once, on first use.
+const int32_t kLqmNoiseFloor = -95;                 // dBm, a fixed floor; the MT7925 noise is not read
+inline bool lqmNoiseSnrEnabled() {
+    static int state = -1;
+    if (state < 0) {
+        uint32_t on = 0;
+        PE_parse_boot_argn("mtknativelqmsnr", &on, sizeof(on));
+        state = on ? 1 : 0;
+    }
+    return state == 1;
+}
 // apple80211_channel flags: band 0x8 = 2.4 GHz, 0x10 = 5 GHz; 0x2 = 20 MHz; 0x80 = active scan allowed.
 // 0 for 6 GHz: Apple's flag for it is not read from ChanSpecConvToApple80211Channel yet, so such a channel is left out.
 inline uint32_t bandFlag(uint8_t band) { return band == MTK_CHAN_2G ? 0x8u : band == MTK_CHAN_5G ? 0x10u : 0u; }
@@ -721,6 +734,17 @@ void WTLWirelessNativeIf::serviceJoin() {
                 lqmMsg[0x54] = 1;
                 lqmMsg[0x1d8] = 1;
                 lqmMsg[0x1d9] = 1;
+                if (lqmNoiseSnrEnabled()) {
+                    int32_t lqmRssi = found ? curBss->rssi : -60;
+                    int32_t snr = lqmRssi - kLqmNoiseFloor;
+                    int8_t chain = (int8_t)(lqmRssi < -128 ? -128 : lqmRssi > 127 ? 127 : lqmRssi);
+                    lqmMsg[0x09] = (uint8_t)chain;                                    // chain 0 RSSI, s8 (offset per AirportMtkWlan v2.1.1 release notes, unverified)
+                    lqmMsg[0x0a] = (uint8_t)chain;                                    // chain 1 RSSI, s8 (same source, unverified)
+                    lqmMsg[0x0b] = 1;                                                 // SNR valid (same source, unverified)
+                    store<int16_t>(lqmMsg, 0x0c, (int16_t)(snr < 0 ? 0 : snr > 100 ? 100 : snr));   // SNR dB, s16 (same source, unverified)
+                    lqmMsg[0x0e] = 1;                                                 // noise valid (same source, unverified)
+                    store<int16_t>(lqmMsg, 0x10, (int16_t)kLqmNoiseFloor);            // noise dBm, s16 (same source, unverified)
+                }
                 lqmTick++;
                 postEvent(kEventLqmUpdate, lqmMsg, kLqmSize);
             }

@@ -42,3 +42,12 @@ W 0x0d420c 0xffffffff
 W 0x0d42f0 0x00000000
 # interrupts: TX done, MCU command, and RX done bits 12, 14, 15 (inside GENMASK(18, 4))
 W 0x0d4204 0x2e07fff0
+# band_idx (mt7925/main.c mt7925_add_interface, mt7927_reconfig_band, mt7925_assign_vif_chanctx; mt7927_band_idx in mt7925.h):
+# the interface is added on the phy's default 2.4 GHz channel (band 0); assigning the 5 GHz channel context removes the
+# device (old band) and adds it again with band 1, each time with the BSS basic record from mt76_connac_mcu_uni_add_dev
+BAND dev 1 0
+BAND bss 1 0
+BAND dev 0 0
+BAND bss 0 0
+BAND dev 1 1
+BAND bss 1 1
