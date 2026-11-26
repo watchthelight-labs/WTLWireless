@@ -37,7 +37,7 @@ their code, history and open issues are here.
 |---|---|---|
 | MediaTek MT7925 (Filogic 360), Lenovo Legion 5 15IAX10 and other 2025 laptops | `14C3:7925`, subsystem `17AA:E0FF` | tested daily, every number in this README comes from it |
 | AMD RZ717 (MT7925 on AM5 desktop boards: ASRock X870 Steel Legend WiFi and others) | `14C3:0717` | matched since 0.11.1; Bluetooth confirmed on an X870, Wi-Fi from the Wi-Fi menu on another AM5 board ([WTLWifiMenu #3](https://github.com/watchthelight-labs/WTLWifiMenu/issues/3)) |
-| Other MT7925 boards (different subsystem ids) | `14C3:7925` | should work; an ASUS ROG Strix B860-G desktop reports Wi-Fi and Bluetooth working on 26.7.2 ([#4](https://github.com/watchthelight-labs/WTLWireless/issues/4)), and an HP HyperX OMEN PRO 16 laptop (subsystem `103C:8C38`, Ryzen 9 9955HX) reports the native menu joining at boot on 26.7.2 ([#6](https://github.com/watchthelight-labs/WTLWireless/issues/6)). Two more Lenovo laptops are listed as working in their owners' READMEs, with no logs sent to me yet: a ThinkBook 16p G6 ADR (AMD, subsystem `17AA:E0FF` like the Legion) on 0.15.0 with the Wi-Fi menu on 26.7.1 to 26.7.3 ([repo](https://github.com/Yangcheng811/ThinkBook-16p-2025-G6-ADR-Hackintosh)), and a Legion Y7000P IRX10 on the three kexts from before 0.14.0 on 26.7.2 ([repo](https://github.com/Cube-geometric/Hackintosh-Legion-Y7000P-IRX10-EFI-with-MT7925-and-Trackpad)); report either way |
+| Other MT7925 boards (different subsystem ids) | `14C3:7925` | should work; an ASUS ROG Strix B860-G desktop reports Wi-Fi and Bluetooth working on 26.7.2 ([#4](https://github.com/watchthelight-labs/WTLWireless/issues/4)), and an HP HyperX OMEN PRO 16 laptop (subsystem `103C:8C38`, Ryzen 9 9955HX) reports the native menu joining at boot on 26.7.2 ([#6](https://github.com/watchthelight-labs/WTLWireless/issues/6)). More laptops report through their owners' repos (user reports, not checked by me): an HP laptop (board `8F06`) on 0.15.0 and 26.7.3 (25G342) has the Wi-Fi menu, scans and data working and joins a 5 GHz Android hotspot, but an iPhone hotspot only on 2.4 GHz ([report](https://github.com/Game-5040/hackintosh-hp-8f06-macos26/issues/1#issuecomment-7099510962)); a ThinkBook 16p G6 ADR (AMD, subsystem `17AA:E0FF` like the Legion) on 0.15.0 with the Wi-Fi menu on 26.7.1 to 26.7.3 keeps Wi-Fi and Bluetooth through display sleep, and its BIOS offers S0ix only, so macOS never enters system sleep there ([report](https://github.com/Yangcheng811/ThinkBook-16p-2025-G6-ADR-Hackintosh/issues/1#issuecomment-7074407957)); and a Legion Y7000P IRX10 on the three kexts from before 0.14.0 reconnects Wi-Fi by itself after a sleep of unstated length, with Bluetooth staying connected ([report](https://github.com/Cube-geometric/Hackintosh-Legion-Y7000P-IRX10-EFI-with-MT7925-and-Trackpad/issues/1#issuecomment-7075930546)); report either way |
 | MediaTek MT7927 (Filogic 380), AMD RZ738 | `14C3:7927`, `14C3:6639`, `14C3:0738` | **in the chip table since 0.15.0, switched off, never run on hardware by me.** Without boot-arg `mtk7927=1` the driver only reports the card and touches no register. Testers wanted: see "Other MediaTek cards" below. No Bluetooth yet (no firmware in linux-firmware) |
 | MT7921, MT7921K (RZ608), MT7922 (RZ616), MT7920, MT7902 | `14C3:7961`, `0608`, `7922`, `0616`, ... | **not supported**: different firmware and a different init path. See "Other MediaTek cards" below for what it would take and how to help; until then SimpleMtkWlan and its forks cover those cards |
 
@@ -465,8 +465,8 @@ Wi-Fi menu part:
 - [qwz-macos](https://github.com/f0xeri/qwz-macos) (GPL-2.0, f0xeri): an independent native front end on 25G241 for a
   Qualcomm WCN7850 core; its current-channel width flags and its power-state replay after wake were read as references;
   no code from it is in this repository.
-- [mt7925-macos-wifi](https://github.com/thanhnndev/mt7925-macos-wifi) (BSD-3-Clause-Clear, thanhnndev): the itlmt7925
-  driver split out of ga403wm-hackintosh, with per-build ABI folders like ours and AWDL work in progress that we follow
+- [mt7925-macos](https://github.com/thanhnndev/mt7925-macos) (BSD-3-Clause-Clear, thanhnndev): the itlmt7925
+  driver split out of ga403wm-hackintosh, with per-build ABI folders like ours and AWDL work that we follow (by its notes `awdl0` is up and one Mac to Mac AirDrop completed in November 2026)
   for [#8](https://github.com/watchthelight-labs/WTLWireless/issues/8); no code from it is in this
   repository.
 - [AirportRTW89-MT7922](https://github.com/DGBooth/AirportRTW89-MT7922) (GPL-2.0, DGBooth): MT7922 as a native AirPort
@@ -479,6 +479,9 @@ Wi-Fi menu part:
   creates `awdl0` and gets the peer manager through configure and enableAWDL on 25G241, with no peer in the air yet)
   are read as references for
   [#8](https://github.com/watchthelight-labs/WTLWireless/issues/8); no code from it is in this repository.
+- [ForbiddenItlwm](https://github.com/retropineaple/ForbiddenItlwm) (GPL-2.0, retropineaple): AWDL work on an Intel itlwm
+  core; it checks every slot of the AWDL interface's vtable and stays inert on a mismatch, which was read as a reference
+  for [#8](https://github.com/watchthelight-labs/WTLWireless/issues/8); no code from it is in this repository.
 - [owly](https://github.com/t4t5/owly) (MIT, t4t5): AirDrop and AWDL for non-Apple Wi-Fi cards on Linux. It lists the
   MT7925 as working in shared mode and ships iOS 26 captures taken on an `mt7925e`, plus a protocol spec
   (`docs/SPEC.md`); read as a reference for what the radio has to send for [#8](https://github.com/watchthelight-labs/WTLWireless/issues/8);
