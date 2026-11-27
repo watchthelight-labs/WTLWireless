@@ -121,6 +121,19 @@ int WTLWireless::uniCmd(uint8_t cid, const void *payload, uint32_t plen, bool qu
             memcpy(ev, p, c);
             if (evLen) *evLen = c;
         }
+        // these commands answer {cid, pad[3], status} (mt7925_mcu_parse_response); 0xc0000001 is "no such link"
+        if (match && (cid == 0x01 || cid == 0x02 || cid == 0x03 || cid == 0x05 || cid == 0x06) && len >= 52) {
+            uint32_t st = le32(p + 48);
+            if (p[44] != cid) uniCmdStatusOdd++;
+            else {
+                uniCmdStatusSeen++;
+                if (st) {
+                    uniCmdRefusedCid = cid;
+                    uniCmdRefusedStatus = st;
+                    if (uniCmdRefused++ < 8) IOLog("WTLWireless: command 0x%02x (seq %u) refused, firmware status 0x%x\n", cid, seq, st);
+                }
+            }
+        }
         rxRelease(rxMcu);
         if (match) { uniCmdTimeouts = 0; return 0; }
         rxUnmatched++;

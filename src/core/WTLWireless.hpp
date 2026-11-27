@@ -338,6 +338,9 @@ private:
     // firmware command health: uniCmd never runs inside the RX path, and a dead firmware stops the machines
     bool inDispatch = false, fwDead = false;
     uint32_t uniCmdInDispatch = 0, uniCmdTimeouts = 0, uniCmdFails = 0;
+    // firmware status of DEV_INFO, BSS_INFO and STA_REC answers: counted and published, the result is not acted on yet
+    uint32_t uniCmdStatusSeen = 0, uniCmdStatusOdd = 0, uniCmdRefused = 0, uniCmdRefusedStatus = 0;
+    uint8_t uniCmdRefusedCid = 0;
     volatile uint32_t irqStatusOr = 0;
     uint32_t evCount[256] = {};
     uint32_t evShort = 0, evDumps = 0;

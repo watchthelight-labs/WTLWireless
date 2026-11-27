@@ -739,7 +739,9 @@ void WTLWireless::publishW6() {
     snprintf(s, sizeof(s), "want %u pmk %u autoopen %u (%u ssids) fails %u runs %u switch %u disc %u rejoinpend %u", wantActive, wantHasPmk,
              autoOpen, nAutoOpenSsids, cmFails, cmRuns, switchPending, disconnectPending, rejoinPending);
     setProperty("MtkCm", s);
-    snprintf(s, sizeof(s), "indispatch %u timeouts %u fails %u dead %u", uniCmdInDispatch, uniCmdTimeouts, uniCmdFails, fwDead);
+    snprintf(s, sizeof(s), "indispatch %u timeouts %u fails %u dead %u, status seen %u odd %u refused %u (last cid 0x%02x status 0x%x)",
+             uniCmdInDispatch, uniCmdTimeouts, uniCmdFails, fwDead, uniCmdStatusSeen, uniCmdStatusOdd, uniCmdRefused, uniCmdRefusedCid,
+             uniCmdRefusedStatus);
     setProperty("MtkW2Cmd", s);
 }
 

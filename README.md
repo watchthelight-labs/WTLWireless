@@ -96,6 +96,7 @@ Everything below was measured on one laptop (Legion 5 15IAX10, OpenCore 1.0.8) o
 
 | Version | What it adds | Tested on | Result |
 |---|---|---|---|
+| 0.15.5 | per-rate TX power limits for the 5.9 GHz channels 163 to 177 as well (the 5 GHz list ended at 167); the driver now reads the status the firmware puts in its answers to DEV_INFO, BSS_INFO and STA_REC commands and counts refusals in `MtkW2Cmd` (it only counts: a refused command is handled as before). Both follow mt76 changes of November 2026 | macOS 26.7.3 developer beta (25G416), MT7925, the same WPA2 range extender network | lease in the boot check, `MtkW2Cmd` "status seen 20 odd 0 refused 0" after the join, `MtkW9Power` "sku 2g failed 0, sku 5g failed 0", ping without loss |
 | 0.15.4 | nothing new in the core; released with the Wi-Fi menu part for macOS 15 Sequoia (below) | macOS 26.7.3 developer beta (25G416), MT7925, the same WPA2 range extender network | lease 47 s into the boot check, `MtkState` "W6 pass: en1 passing traffic", ping without loss |
 | 0.15.3 | takes frames the firmware already converted to Ethernet when the hardware decrypted them (they were dropped on WPA2 networks before). Fixes "joined, but no IP address" on an access point that sends broadcast frames that way and DHCP replies as broadcast | macOS 26.7.3 developer beta (25G416), MT7925, a WPA2 range extender network | lease 38 s into the boot check, 11ac 80 MHz at 866 Mbit/s; over a million frames received in 8 minutes, none of the converted ones dropped (`MtkW6RxTransInfo`), no deauth |
 | 0.15.0 | an MT7927 row in the chip table, off unless boot-arg `mtk7927=1` is set; without it the card is only reported. Nothing changes on an MT7925 | macOS 26.7.3 developer beta (25G416), MT7925 | joins the saved network at boot as before (5 GHz, 80 MHz, MCS 9, 2 streams, 866 Mbit/s); `MtkChipName` `MT7925`; the MT7927 path ran only in the host harness |
@@ -122,6 +123,7 @@ OpenCore 1.0.8) on macOS 26.7.1 (25G241), 26.7.2 (25G332), 26.7.3 (25G342) and t
 
 | Version | What it does | Result |
 |---|---|---|
+| 0.15.5 | the 0.15.4 code with a new version number | joins the saved network at boot on 25G416, `MtkNativeCoreOps` 6 |
 | 0.15.4 | a build for macOS 15.8.1 Sequoia (24H32): `ABI=24H32 ./build.sh`, by [Elezorn](https://github.com/Elezorn) (pull request 12). On Tahoe it answers `getHW_ADDR` and reports `MtkNativeAbiGeneration`; nothing else changes there | Tahoe: joins the saved network at boot on 25G416, `MtkNativeAbiGeneration` = `tahoe`. Sequoia: Elezorn's Dell Latitude 5421 on 24H32 (Wi-Fi menu, scans, WPA2 joins with and without a private address, also in Recovery); the release zip holds the Tahoe build, the Sequoia one is built from source |
 | 0.15.3 | noise and SNR in the link quality report behind boot-arg `mtknativelqmsnr=1` (off by default, not run yet); otherwise as 0.15.0 | joins the saved network at boot on 25G416, 5g44/80 at 866 Mbps |
 | 0.15.0 | version only; same code as 0.14.0 | joins the saved network at boot on 25G416, 5g157/80 at 866 Mbps |
@@ -153,6 +155,7 @@ Versions before 0.14.0 in this table are those of `MtkBt.kext`.
 
 | Version | Tested on | Result |
 |---|---|---|
+| 0.15.5 | Legion 5 15IAX10, macOS 26.7.3 developer beta (25G416), OpenCore 1.0.8 | version only; `MtkBtState` = `ready`, Bluetooth on. Pairing and audio were not repeated |
 | 0.15.4 | Legion 5 15IAX10, macOS 26.7.3 developer beta (25G416), OpenCore 1.0.8 | version only; `MtkBtState` = `ready`, Bluetooth on. Pairing and audio were not repeated |
 | 0.15.3 | Legion 5 15IAX10, macOS 26.7.3 developer beta (25G416), OpenCore 1.0.8 | version only; `MtkBtState` = `ready`. Pairing and audio were not repeated |
 | 0.15.0 | Legion 5 15IAX10, macOS 26.7.3 developer beta (25G416), OpenCore 1.0.8 | version only; `MtkBtState` = `ready`, controller on. An MT7927's Bluetooth is not loaded |
@@ -306,7 +309,7 @@ Set in the core's `Info.plist` (`WTLWireless.kext/Contents/Info.plist`) under th
 
 ## Diagnostics
 
-`ioreg -r -c WTLWireless -l -w0` holds every counter the driver keeps: `MtkState`, `MtkScan` (the cached networks with channel, RSSI and security), `MtkW1Join` (join results), `MtkW2Sec` (handshake messages, MIC failures, replays, drops), `MtkCm` (what the connection manager decided), `MtkW2Cmd` (firmware command timeouts), and the data path and block-ack sets. It never contains a key or passphrase. `mtkwifi status --json` gives the same picture from user space. `tools/wifi.sh` runs the measurements the table above came from. `tools/mtk-report.sh` packs all of it for a bug report (see the section below). The `docs/HOW-IT-WORKS.md` property list explains each one.
+`ioreg -r -c WTLWireless -l -w0` holds every counter the driver keeps: `MtkState`, `MtkScan` (the cached networks with channel, RSSI and security), `MtkW1Join` (join results), `MtkW2Sec` (handshake messages, MIC failures, replays, drops), `MtkCm` (what the connection manager decided), `MtkW2Cmd` (firmware command timeouts; since 0.15.5 also how many DEV_INFO, BSS_INFO and STA_REC answers carried a status and how many the firmware refused), and the data path and block-ack sets. It never contains a key or passphrase. `mtkwifi status --json` gives the same picture from user space. `tools/wifi.sh` runs the measurements the table above came from. `tools/mtk-report.sh` packs all of it for a bug report (see the section below). The `docs/HOW-IT-WORKS.md` property list explains each one.
 
 `ioreg -r -c WTLWirelessNative -l -w0` holds the state of the Wi-Fi menu part: `MtkNativeTrace` (what happened, in order),
 `MtkNativeCalls` (every request the Family made, by slot or ioctl code, and every event we posted), `MtkNativeScan`,

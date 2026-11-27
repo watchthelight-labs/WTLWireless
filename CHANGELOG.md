@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.15.5 (2026-11-26): 5.9 GHz power limits, firmware command status
+
+Two small changes in the core, both taken from what mt76 changed in November 2026. The Wi-Fi menu part and the Bluetooth
+part are the 0.15.4 code with a new version number.
+
+- Per-rate TX power limits now cover channels 163, 169, 173, 175 and 177 (mt76 commit 99265f9a). The 5 GHz list in
+  `MtkPower.cpp` ended at 167, so a network on a 5.9 GHz channel got no limit from the driver and ran on the firmware's
+  default. 51 channels make 17 full messages; the old list ended with a message for one channel.
+- `uniCmd` reads the status the firmware returns for DEV_INFO (0x01), BSS_INFO (0x02), STA_REC (0x03), SUSPEND (0x05) and
+  OFFLOAD (0x06): `{cid, pad[3], status}` right after the 44-byte header, where `mt7925_mcu_parse_response` reads it (mt76
+  commit bc394ec4 added a log line for it). Until now the driver took any answer with the right sequence number as
+  success. It still does: this release only counts. `MtkW2Cmd` gains "status seen N odd N refused N (last cid, status)",
+  and the first eight refusals go to the kernel log as "WTLWireless: command 0x.. (seq ..) refused, firmware status 0x..".
+  "odd" counts answers whose first byte is not the command ID, which would mean the layout is not what we think.
+- Booted on a Legion 5 15IAX10, macOS 26.7.3 developer beta (25G416), WPA2 on 5 GHz channel 44: all 20 answers of a
+  join carried the status where Linux reads it ("status seen 20 odd 0 refused 0"), `MtkW9Power` "sku 2g failed 0, sku 5g
+  failed 0", lease, ping without loss, Bluetooth ready. No 5.9 GHz network was in range, so the new channels were sent to
+  the firmware and accepted, but not used on the air.
+- If you see a join problem, the `refused` number in `ioreg -r -c WTLWireless -l -w0 | grep MtkW2Cmd` is worth adding
+  to the report.
+- Host checks: `tests/run.sh` 75 checks; `tests/hwtrace/compare.sh` against 0.15.4 differs only in the power limit
+  messages.
+
 ## 0.15.4 (2026-11-26): the Wi-Fi menu part on macOS 15 Sequoia
 
 Contributed by [Elezorn](https://github.com/Elezorn) in pull request 12.

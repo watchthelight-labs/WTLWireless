@@ -121,7 +121,7 @@ int WTLWireless::ratePowerBand(bool is5g, int8_t halfDbm) {
     static const uint8_t ch2[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14};
     static const uint8_t ch5[] = {36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 100, 102, 104, 106, 108, 110,
                                   112, 114, 116, 118, 120, 122, 124, 126, 128, 132, 134, 136, 138, 140, 142, 144, 149, 151,
-                                  153, 155, 157, 159, 161, 165, 167};
+                                  153, 155, 157, 159, 161, 163, 165, 167, 169, 173, 175, 177};   // 5.9 GHz since mt76 99265f9a
     const uint8_t *list = is5g ? ch5 : ch2;
     int n = is5g ? (int)sizeof(ch5) : (int)sizeof(ch2);
     static uint8_t msg[52 + 3 * (1 + SKU_LEN)];
