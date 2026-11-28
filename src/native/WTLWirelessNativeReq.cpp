@@ -824,11 +824,10 @@ void WTLWirelessNativeIf::postWclReady() {   // pollControl has already cleared 
     if (miscTraced++ < 12) nativeTrace(ctl, "wcl:driver available + interfaces ready posted (%u)", wclReadyPosts);
 }
 
-#if defined(MTK_ABI_SEQUOIA)
-// 0x167 HW_ADDR (slot 507 on 24H32): u32 version 1, the factory address at +4 (AppleBCMWLANCore::getHW_ADDR). WCL keeps it as
-// the address a join without a private address asks for.
+// 0x167 HW_ADDR (slot 511 on Tahoe, 507 on 24H32): u32 version 1, the factory address at +4 (AppleBCMWLANCore::getHW_ADDR).
+// WCL keeps it as the address a join without a private address asks for.
 IOReturn WTLWirelessNativeIf::getHW_ADDR(apple80211_hw_mac_address *d) {
-    nativeCall(ctl, 'S', 507);
+    nativeCall(ctl, 'S', MTK_SLOT(511, 507));
     if (!d || !ctl) return kIOReturnBadArgument;
     store<uint32_t>(d, 0, 1);
     memcpy((uint8_t *)d + 4, ctl->stationAddress(), 6);
@@ -836,7 +835,6 @@ IOReturn WTLWirelessNativeIf::getHW_ADDR(apple80211_hw_mac_address *d) {
     if (miscTraced++ < 12) nativeTrace(ctl, "wcl:hw addr %02x:%02x:%02x:%02x:%02x:%02x", m[0], m[1], m[2], m[3], m[4], m[5]);
     return kIOReturnSuccess;
 }
-#endif
 
 IOReturn WTLWirelessNativeIf::setDBRG_ENTROPY(apple80211_drbg_entropy *d) { nativeCall(ctl, 'S', MTK_SLOT(662, 654)); return d ? kIOReturnSuccess : kIOReturnBadArgument; }
 

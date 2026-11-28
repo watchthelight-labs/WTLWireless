@@ -1,0 +1,24 @@
+{
+  "build": "25G422",
+  "product": "26.7.4",
+  "xnu": "xnu-12377.161.15.702.20~1",
+  "kernel_version": "Darwin Kernel Version 25.6.0: Wed Nov 11 21:56:55 PST 2026; root:xnu-12377.161.15.702.20~1/RELEASE_X86_64",
+  "kc_sha256": "b40a1d18a18da75b1526a8c20433697b66f61bb7b5a8f08cdce9b9c11a059ca3",
+  "sizes": {
+    "IO80211Controller": 296,
+    "IO80211WorkQueue": 80,
+    "IO80211CommandGate": 24,
+    "IOSkywalkInterface": 176,
+    "IOSkywalkNetworkInterface": 224,
+    "IOSkywalkEthernetInterface": 288,
+    "IO80211SkywalkInterface": 296,
+    "IO80211InfraInterface": 304,
+    "IO80211InfraProtocol": 304,
+    "IOSkywalkPacketBufferPool": 192,
+    "IOSkywalkPacketQueue": 216,
+    "IOSkywalkTxSubmissionQueue": 360,
+    "IOSkywalkRxSubmissionQueue": 336,
+    "IOSkywalkTxCompletionQueue": 312,
+    "IOSkywalkRxCompletionQueue": 312
+  }
+}

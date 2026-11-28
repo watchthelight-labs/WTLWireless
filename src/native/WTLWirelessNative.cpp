@@ -39,14 +39,9 @@ bool commandAllowed(int cmd) {
     case 0x1b1: case 0x1cc: case 0x1b2: case 0x1bc: case 0x1c6:   // BSS_INFO, EXTENDED_BSS_INFO, TRAFFIC_COUNTERS, LINK_UP_DONE, LINK_STATE_UPDATE
     case 0x1be: case 0x1f6: case 0x1bb: case 0x1b5: case 0x1ac: case 0x1eb:   // accepted and recorded on the link path
     case 0x170: case 0x22d:                                 // SET_MAC_ADDRESS (the private address, asked before every join; N-141 died here), DBRG_ENTROPY
+    case 0x167:                                             // HW_ADDR: WCLConfigManager::loadHwMacAddr after 0x31 event (needed on both Sequoia and Tahoe)
     case 0x37: case 0x39: case 0xc3:                        // GUARD_INTERVAL, MCS, MCS_VHT (native #1: what Wi-Fi details show)
         return true;
-#if defined(MTK_ABI_SEQUOIA)
-    // HW_ADDR: WCLConfigManager::loadHwMacAddr after the 0x31 event. The 0x37 above is the GUARD_INTERVAL ioctl, not the
-    // 0x37 driver-available event that postWclReady posts (events and ioctls are separate number spaces).
-    case 0x167:
-        return true;
-#endif
     default:
         return false;
     }
