@@ -39,7 +39,7 @@ const bool kWclReadyDefault = true;            // post 0x37 driver available + 0
 const unsigned kBeaconHeader = 0x44, kBeaconFlags = 0x40;
 const unsigned kExtBssSize = 0x214, kExtBssRsn = 0x113;
 const bool kTahoeOnlyEventsDefault = true;
-const bool kWclReadyDefault = false;           // read on 24H32 only; Tahoe joins without a private address already
+const bool kWclReadyDefault = true;            // verified on 25G422: without 0x37+0x31+0x167, hwMacAddr stays 00:00:00:00:00:00 -> 0xe00002c2
 #endif
 const unsigned kBeaconHeaderMax = 0x44;       // allocation size, whichever build
 } // namespace mtkabi
